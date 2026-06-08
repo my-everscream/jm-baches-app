@@ -1,21 +1,18 @@
 /* ================================================================
-   FIREBASE LAYER v2 — JM Bâches
-   Version COMPAT (sans import ES module) — compatible GitHub Pages
-   
-   UTILISATION : ce fichier est chargé APRÈS les scripts Firebase compat
-   via des balises <script> classiques dans le HTML.
+   FIREBASE LAYER v3 — JM Bâches
+   Firestore s'ouvre UNIQUEMENT après confirmation Auth
    ================================================================ */
 
 // ----------------------------------------------------------------
 // 1. CONFIGURATION — remplacer par ta vraie config
 // ----------------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyBe3ftHEv0SLYE9iaLoX0ycv4b0os48wPI",
-  authDomain: "jm-baches.firebaseapp.com",
-  projectId: "jm-baches",
-  storageBucket: "jm-baches.firebasestorage.app",
-  messagingSenderId: "526625133379",
-  appId: "1:526625133379:web:5d23d9eef20df4a1bd55f6"
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 
 // ----------------------------------------------------------------
@@ -26,51 +23,52 @@ const _auth = firebase.auth();
 const _db   = firebase.firestore();
 
 let _firestoreReady = false;
+let _unsubUsers, _unsubDossiers, _unsubNotifs;
 
 // ----------------------------------------------------------------
-// 3. CHARGEMENT INITIAL — abonnements temps réel
+// 3. CHARGEMENT FIRESTORE — lancé uniquement après auth confirmée
 // ----------------------------------------------------------------
-async function initFirebase() {
-  showLoadingOverlay(true);
-
-  await waitForFirstLoad();
-  _firestoreReady = true;
-  showLoadingOverlay(false);
-
-  // Abonnements temps réel après le premier chargement
-  _db.collection('users').onSnapshot(snap => {
-    users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (currentUser) {
-      const refreshed = users.find(u => u.id === currentUser.id);
-      if (refreshed) currentUser = refreshed;
-    }
-    if (_firestoreReady) {
-      buildLoginSelect?.();
-      if (typeof currentTab !== 'undefined' && currentTab === 'users') renderUsers?.();
-    }
-  });
-
-  _db.collection('dossiers').orderBy(firebase.firestore.FieldPath.documentId(), 'desc').onSnapshot(snap => {
-    dossiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (_firestoreReady) refreshCurrentView();
-  });
-
-  _db.collection('notifications').onSnapshot(snap => {
-    notifications = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (String(b.id) > String(a.id) ? 1 : -1));
-    if (_firestoreReady) updateBadge?.();
-  });
-}
-
-function waitForFirstLoad() {
+function startFirestoreListeners() {
   return new Promise(resolve => {
     let loaded = 0;
     const check = () => { if (++loaded >= 3) resolve(); };
-    const u1 = _db.collection('users').onSnapshot(() => { u1(); check(); });
-    const u2 = _db.collection('dossiers').onSnapshot(() => { u2(); check(); });
-    const u3 = _db.collection('notifications').onSnapshot(() => { u3(); check(); });
+
+    _unsubUsers = _db.collection('users').onSnapshot(snap => {
+      users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (currentUser) {
+        const r = users.find(u => u.id === currentUser.id);
+        if (r) currentUser = r;
+      }
+      if (_firestoreReady) {
+        buildLoginSelect?.();
+        if (typeof currentTab !== 'undefined' && currentTab === 'users') renderUsers?.();
+      }
+      check();
+    });
+
+    _unsubDossiers = _db.collection('dossiers')
+      .orderBy(firebase.firestore.FieldPath.documentId(), 'desc')
+      .onSnapshot(snap => {
+        dossiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (_firestoreReady) refreshCurrentView();
+        check();
+      });
+
+    _unsubNotifs = _db.collection('notifications').onSnapshot(snap => {
+      notifications = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (String(b.id) > String(a.id) ? 1 : -1));
+      if (_firestoreReady) updateBadge?.();
+      check();
+    });
   });
+}
+
+function stopFirestoreListeners() {
+  _unsubUsers?.();
+  _unsubDossiers?.();
+  _unsubNotifs?.();
+  _firestoreReady = false;
 }
 
 // ----------------------------------------------------------------
@@ -81,19 +79,16 @@ window.saveData = async function saveData() {
   try {
     const batch = _db.batch();
     dossiers.forEach(d => {
-      const ref = _db.collection('dossiers').doc(d.id);
       const data = { ...d }; delete data.id;
-      batch.set(ref, data, { merge: true });
+      batch.set(_db.collection('dossiers').doc(d.id), data, { merge: true });
     });
     users.forEach(u => {
-      const ref = _db.collection('users').doc(u.id);
       const data = { ...u }; delete data.id;
-      batch.set(ref, data, { merge: true });
+      batch.set(_db.collection('users').doc(u.id), data, { merge: true });
     });
     notifications.forEach(n => {
-      const ref = _db.collection('notifications').doc(String(n.id));
       const data = { ...n }; delete data.id;
-      batch.set(ref, data, { merge: true });
+      batch.set(_db.collection('notifications').doc(String(n.id)), data, { merge: true });
     });
     await batch.commit();
     showSaveIndicator('ok');
@@ -120,6 +115,7 @@ window.doLogin = async function doLogin() {
 
   try {
     await _auth.signInWithEmailAndPassword(email, pwd);
+    // onAuthStateChanged prend le relais
   } catch (e) {
     const msgs = {
       'auth/user-not-found':     'Aucun compte trouvé pour cette adresse email',
@@ -135,6 +131,7 @@ window.doLogin = async function doLogin() {
 };
 
 window.doLogout = async function doLogout() {
+  stopFirestoreListeners();
   await _auth.signOut();
   currentUser = null;
   currentDosId = null;
@@ -146,29 +143,36 @@ window.doLogout = async function doLogout() {
 };
 
 // ----------------------------------------------------------------
-// 6. SESSION — remplace la reconnexion localStorage
+// 6. SESSION — point d'entrée unique, géré par onAuthStateChanged
 // ----------------------------------------------------------------
-_auth.onAuthStateChanged(async firebaseUser => {
-  if (firebaseUser) {
-    // Attendre que Firestore soit prêt si ce n'est pas encore le cas
-    if (!_firestoreReady) await waitUntilReady();
-    const u = users.find(x => x.email && x.email.toLowerCase() === firebaseUser.email.toLowerCase() && x.active);
-    if (u) {
-      connectUser(u);
-    } else {
-      console.warn('Pas de profil Firestore pour :', firebaseUser.email);
-      await _auth.signOut();
-    }
-  }
-});
+document.addEventListener('DOMContentLoaded', () => {
+  showLoadingOverlay(true);
 
-function waitUntilReady() {
-  return new Promise(resolve => {
-    const interval = setInterval(() => {
-      if (_firestoreReady) { clearInterval(interval); resolve(); }
-    }, 100);
+  _auth.onAuthStateChanged(async firebaseUser => {
+    if (firebaseUser) {
+      // Utilisateur connecté (login ou session persistante)
+      showLoadingOverlay(true);
+      await startFirestoreListeners();
+      _firestoreReady = true;
+      showLoadingOverlay(false);
+
+      const u = users.find(x =>
+        x.email && x.email.toLowerCase() === firebaseUser.email.toLowerCase() && x.active
+      );
+      if (u) {
+        connectUser(u);
+      } else {
+        console.warn('Pas de profil Firestore pour :', firebaseUser.email);
+        stopFirestoreListeners();
+        await _auth.signOut();
+        showLoadingOverlay(false);
+      }
+    } else {
+      // Pas de session — afficher l'écran de login
+      showLoadingOverlay(false);
+    }
   });
-}
+});
 
 // ----------------------------------------------------------------
 // 7. RESET
@@ -231,7 +235,7 @@ function showLoadingOverlay(show) {
       el = document.createElement('div');
       el.id = 'fb-loading-overlay';
       el.style.cssText = 'position:fixed;inset:0;background:rgba(20,20,24,.75);display:flex;align-items:center;justify-content:center;z-index:9999;color:#fff;font-size:15px;font-family:DM Sans,sans-serif;gap:12px';
-      el.innerHTML = '<div style="width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div> Chargement des données…';
+      el.innerHTML = '<div style="width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite"></div> Chargement…';
       document.body.appendChild(el);
     }
     el.style.display = 'flex';
@@ -243,35 +247,16 @@ function showLoadingOverlay(show) {
 function refreshCurrentView() {
   if (typeof currentTab === 'undefined') return;
   const map = {
-    dashboard:      () => typeof renderDashboard     === 'function' && renderDashboard(),
-    dossiers:       () => typeof renderDos           === 'function' && renderDos(),
-    atelier:        () => typeof renderAtelier       === 'function' && renderAtelier(),
-    atelier_grand:  () => typeof renderAtelierGrand  === 'function' && renderAtelierGrand(),
-    emballage:      () => typeof renderEmballage     === 'function' && renderEmballage(),
-    emballage_grand:() => typeof renderEmballageGrand=== 'function' && renderEmballageGrand(),
-    planning:       () => typeof renderPlanning      === 'function' && renderPlanning(),
-    users:          () => typeof renderUsers         === 'function' && renderUsers(),
+    dashboard:       () => typeof renderDashboard      === 'function' && renderDashboard(),
+    dossiers:        () => typeof renderDos            === 'function' && renderDos(),
+    atelier:         () => typeof renderAtelier        === 'function' && renderAtelier(),
+    atelier_grand:   () => typeof renderAtelierGrand   === 'function' && renderAtelierGrand(),
+    emballage:       () => typeof renderEmballage      === 'function' && renderEmballage(),
+    emballage_grand: () => typeof renderEmballageGrand === 'function' && renderEmballageGrand(),
+    planning:        () => typeof renderPlanning       === 'function' && renderPlanning(),
+    users:           () => typeof renderUsers          === 'function' && renderUsers(),
   };
   const fn = map[currentTab];
   if (fn) fn();
   updateBadge?.();
 }
-
-// ----------------------------------------------------------------
-// 10. DÉMARRAGE
-// ----------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  _auth.onAuthStateChanged(async firebaseUser => {
-    if (firebaseUser) {
-      await initFirebase();
-      const u = users.find(x => x.email && x.email.toLowerCase() === firebaseUser.email.toLowerCase() && x.active);
-      if (u) {
-        connectUser(u);
-      } else {
-        await _auth.signOut();
-      }
-    } else {
-      showLoadingOverlay(false);
-    }
-  });
-});
