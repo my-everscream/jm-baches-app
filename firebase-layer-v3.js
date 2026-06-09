@@ -70,16 +70,7 @@ function startFirestoreListeners() {
       .orderBy('at', 'asc')
       .onSnapshot(snap => {
         window._chatMessages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (_firestoreReady && currentUser) {
-          // Calculer non lus par conv
-          window._chatMessages.forEach(m => {
-            if (m.from === currentUser.id) return;
-            if (!m.readBy || !m.readBy.includes(currentUser.id)) {
-              if (!chatConvs[m.convId]) chatConvs[m.convId] = { unread: 0 };
-              // On recalcule tout à chaque snapshot
-            }
-          });
-
+        if (_firestoreReady && currentUser && currentUser.id) {
           // Recalculer unread pour chaque conv
           const convIds = ['general', ...users.filter(u => u.id !== currentUser.id).map(u => u.id)];
           convIds.forEach(cid => {
@@ -175,13 +166,6 @@ window.doLogout = async function doLogout() {
   await _auth.signOut();
   currentUser = null;
   currentDosId = null;
-  // Fermer le panneau chat et cacher le bouton
-  if (typeof chatOpen !== 'undefined') chatOpen = false;
-  if (typeof chatConvs !== 'undefined') chatConvs = {};
-  const chatPanel = document.getElementById('chat-panel');
-  if (chatPanel) chatPanel.classList.remove('open');
-  const chatBtn = document.getElementById('chat-btn');
-  if (chatBtn) chatBtn.style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-email').value = '';
