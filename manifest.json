@@ -1,0 +1,25 @@
+{
+  "name": "JM Bâches — Gestion",
+  "short_name": "JM Bâches",
+  "description": "Application de gestion des dossiers JM Bâches",
+  "start_url": "/jm-baches-app/",
+  "scope": "/jm-baches-app/",
+  "display": "standalone",
+  "background_color": "#14161d",
+  "theme_color": "#14161d",
+  "orientation": "landscape-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

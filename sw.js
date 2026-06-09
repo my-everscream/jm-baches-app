@@ -1,0 +1,59 @@
+const CACHE_NAME = 'jmbaches-v1';
+const ASSETS = [
+  '/jm-baches-app/',
+  '/jm-baches-app/index.html',
+  '/jm-baches-app/firebase-layer-v3.js',
+  '/jm-baches-app/manifest.json',
+];
+
+// Installation — mise en cache des ressources statiques
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activation — nettoyage des anciens caches
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+// Fetch — stratégie Network First (toujours essayer le réseau d'abord)
+// Firestore et Firebase Auth nécessitent le réseau — pas de cache pour eux
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+
+  // Ne pas intercepter les requêtes Firebase/Google
+  if (
+    url.hostname.includes('firebase') ||
+    url.hostname.includes('googleapis') ||
+    url.hostname.includes('gstatic') ||
+    url.hostname.includes('jsdelivr') ||
+    url.hostname.includes('fonts.google')
+  ) {
+    return;
+  }
+
+  // Network First pour les fichiers de l'app
+  e.respondWith(
+    fetch(e.request)
+      .then(response => {
+        // Mettre en cache la nouvelle version
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
+        return response;
+      })
+      .catch(() => {
+        // Fallback sur le cache si hors ligne
+        return caches.match(e.request);
+      })
+  );
+});
