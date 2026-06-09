@@ -910,29 +910,33 @@ const ROLE_COLORS = {
 };
 const ROLE_LABELS = {direction:'Direction',admin:'Administration',commercial:'Commercial',compta:'Comptabilité',ouvrier:'Ouvrier atelier',emballage:'Emballage',sav:'SAV',planning:'Planning',metreur:'Métreur / Technicien'};
 const ALL_PERMS = [
-  {id:'view_all',label:'Voir tous les dossiers'},
-  {id:'create',label:'Créer des dossiers'},
-  {id:'edit',label:'Modifier des dossiers'},
-  {id:'advance',label:'Faire avancer'},
-  {id:'view_prod',label:'Vue atelier'},
-  {id:'adv_prod',label:'Marquer fabriqué'},
-  {id:'emballage',label:'Vue emballage'},
-  {id:'metreur',label:'Vue métreur / calculs'},
-  {id:'planning',label:'Planifier les poses'},
-  {id:'compta',label:'Accès comptabilité'},
-  {id:'horaires_poseurs',label:'Horaires poseurs'},
-  {id:'users',label:'Gérer les comptes'},
+  {id:'view_all',         label:'Voir tous les dossiers'},
+  {id:'create',           label:'Créer des dossiers'},
+  {id:'edit',             label:'Modifier des dossiers'},
+  {id:'advance',          label:'Faire avancer un dossier'},
+  {id:'view_prod',        label:'Vue atelier'},
+  {id:'adv_prod',         label:'Marquer fabriqué (atelier)'},
+  {id:'atelier_grand',    label:'Vue atelier grand écran'},
+  {id:'emballage',        label:'Vue emballage'},
+  {id:'emballage_grand',  label:'Vue emballage grand écran'},
+  {id:'metreur',          label:'Fiches techniques (métreur)'},
+  {id:'planning',         label:'Planifier les poses'},
+  {id:'compta',           label:'Accès comptabilité'},
+  {id:'horaires_poseurs', label:'Horaires poseurs'},
+  {id:'users',            label:'Gérer les comptes'},
+  {id:'journal',          label:'Voir le journal d'activité'},
+  {id:'suivi',            label:'Vue suivi / statistiques'},
 ];
 const ROLE_DEFAULT_PERMS = {
-  direction: ['view_all','create','edit','advance','view_prod','adv_prod','emballage','metreur','planning','compta','horaires_poseurs','users'],
-  admin:     ['view_all','create','edit','advance','horaires_poseurs'],
-  commercial:['view_all','create'],
-  compta:    ['view_all','compta','horaires_poseurs','users'],
-  ouvrier:   ['view_prod','adv_prod'],
-  sav:       ['view_all','create','edit','advance'],
-  planning:  ['view_all','planning'],
+  direction: ['view_all','create','edit','advance','view_prod','adv_prod','atelier_grand','emballage','emballage_grand','metreur','planning','compta','horaires_poseurs','users','journal','suivi'],
+  admin:     ['view_all','create','edit','advance','view_prod','emballage','planning','compta','horaires_poseurs','journal','suivi'],
+  commercial:['view_all','create','edit','suivi'],
+  compta:    ['view_all','compta','horaires_poseurs','users','journal','suivi'],
+  ouvrier:   ['view_prod','adv_prod','atelier_grand'],
+  sav:       ['view_all','create','edit','advance','journal'],
+  planning:  ['view_all','planning','horaires_poseurs','suivi'],
   metreur:   ['view_all','metreur','edit'],
-  emballage: ['emballage'],
+  emballage: ['emballage','emballage_grand'],
 };
 const STATUT_NEXT = {nouveau:'admin',admin:'production',production:'emballage',emballage:'stocké',stocké:'expédié',expédié:'expédié',terminé:'emballage',posé:'posé',retiré:'retiré'};
 const STATUT_LABEL = {nouveau:'Nouveau',admin:'Traitement admin',production:'En production',emballage:'Emballage',stocké:'Stocké',expédié:'Expédié',posé:'Posé',retiré:'Retiré sur place'};
@@ -1244,15 +1248,15 @@ function buildNav() {
   tabs.push({id:'dashboard',icon:'ti-home',label:'Accueil'});
   if(can('view_all')||can('create')) tabs.push({id:'dos',icon:'ti-clipboard-list',label:'Dossiers'});
   if(can('view_prod')) tabs.push({id:'atelier',icon:'ti-tool',label:'Atelier'});
-  if(can('view_prod')&&currentUser.role==='ouvrier') tabs.push({id:'atelier_grand',icon:'ti-layout-grid',label:'Vue grand écran'});
+  if(can('view_prod')&&can('atelier_grand')) tabs.push({id:'atelier_grand',icon:'ti-layout-grid',label:'Vue grand écran'});
   if(can('metreur')) tabs.push({id:'metreur',icon:'ti-ruler',label:'Fiches techniques'});
   if(can('emballage')) tabs.push({id:'emballage_view',icon:'ti-package',label:'Emballage'});
-  if(can('emballage')&&currentUser.role==='emballage') tabs.push({id:'emballage_grand',icon:'ti-layout-grid',label:'Vue grand écran'});
-  if(can('view_all')||can('view_prod')) tabs.push({id:'suivi',icon:'ti-chart-bar',label:'Suivi'});
+  if(can('emballage')&&can('emballage_grand')) tabs.push({id:'emballage_grand',icon:'ti-layout-grid',label:'Vue grand écran'});
+  if(can('suivi')||can('view_all')||can('view_prod')) tabs.push({id:'suivi',icon:'ti-chart-bar',label:'Suivi'});
   if(can('planning')) tabs.push({id:'planning',icon:'ti-calendar',label:'Planning'});
   if(can('compta')) tabs.push({id:'compta',icon:'ti-receipt',label:'Comptabilité'});
   if(can('horaires_poseurs')) tabs.push({id:'horaires',icon:'ti-clock',label:'Horaires poseurs'});
-  if(can('view_all')||can('view_prod')) tabs.push({id:'journal',icon:'ti-history',label:'Journal'});
+  if(can('journal')||can('view_all')||can('view_prod')) tabs.push({id:'journal',icon:'ti-history',label:'Journal'});
   tabs.push({id:'notifs',icon:'ti-bell',label:'Notifications',badge:cnt});
   if(can('users')) tabs.push({id:'users',icon:'ti-users',label:'Comptes'});
 
