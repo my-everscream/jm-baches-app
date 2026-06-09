@@ -22,7 +22,6 @@ firebase.initializeApp(firebaseConfig);
 const _auth = firebase.auth();
 const _db   = firebase.firestore();
 window._db  = _db; // Exposé pour la messagerie
-window._FieldValue = firebase.firestore.FieldValue; // Exposé pour arrayUnion
  
 let _firestoreReady = false;
 let _unsubUsers, _unsubDossiers, _unsubNotifs, _unsubMessages;
@@ -176,6 +175,13 @@ window.doLogout = async function doLogout() {
   await _auth.signOut();
   currentUser = null;
   currentDosId = null;
+  // Fermer le panneau chat et cacher le bouton
+  if (typeof chatOpen !== 'undefined') chatOpen = false;
+  if (typeof chatConvs !== 'undefined') chatConvs = {};
+  const chatPanel = document.getElementById('chat-panel');
+  if (chatPanel) chatPanel.classList.remove('open');
+  const chatBtn = document.getElementById('chat-btn');
+  if (chatBtn) chatBtn.style.display = 'none';
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-email').value = '';
