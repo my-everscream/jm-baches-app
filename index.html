@@ -390,6 +390,10 @@ tbody tr { transition: background .12s var(--ease); }
   .pipeline { grid-template-columns: repeat(2, 1fr); }
   .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; }
   .fiche-grid.c3 { grid-template-columns: 1fr 1fr; }
+  .pilo-2col { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 520px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
 }
 .filter-stat.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent-deep); }
 @media print {
@@ -1460,6 +1464,7 @@ function buildNav() {
   const cnt=unreadCount();
   const tabs=[];
   tabs.push({id:'dashboard',icon:'ti-home',label:'Accueil'});
+  if(can('compta')) tabs.push({id:'pilotage',icon:'ti-chart-pie',label:'Pilotage'});
   if(can('view_all')||can('create')) tabs.push({id:'dos',icon:'ti-clipboard-list',label:'Dossiers'});
   if(can('view_prod')) tabs.push({id:'atelier',icon:'ti-tool',label:'Atelier'});
   if(can('view_prod')&&can('atelier_grand')) tabs.push({id:'atelier_grand',icon:'ti-layout-grid',label:'Vue grand écran'});
@@ -1498,6 +1503,7 @@ function goTab(tab) {
   else if(tab==='emballage_grand') renderEmballageGrand();
   else if(tab==='suivi') renderSuivi();
   else if(tab==='planning') renderPlanning();
+  else if(tab==='pilotage') renderPilotage();
   else if(tab==='compta') renderCompta();
   else if(tab==='horaires') renderHoraires();
   else if(tab==='journal') renderJournal();
@@ -4876,6 +4882,229 @@ document.addEventListener('click', e => {
   const modal = document.getElementById('modal-reset-pwd');
   if (modal && e.target === modal) hideResetPassword();
 });
+
+/* ================================================================
+   COCKPIT DE PILOTAGE — Direction & Comptabilité
+   Lecture seule : agrège les dossiers existants. N'écrit aucune donnée.
+   ================================================================ */
+function piloEUR(n){ return Math.round(n||0).toLocaleString('fr-FR') + ' €'; }
+function piloEURk(n){
+  n = n||0;
+  if(n >= 1000) return (n/1000).toLocaleString('fr-FR',{maximumFractionDigits: n>=10000?0:1}) + ' k€';
+  return Math.round(n) + ' €';
+}
+function piloParseDate(s){
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){ const d=new Date(s.slice(0,10)+'T00:00:00'); return isNaN(d)?null:d; }
+  const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if(m){ const d=new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d)?null:d; }
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function piloCreatedDate(d){
+  const c = (d.history||[]).find(h=>h.type==='création');
+  return (c ? piloParseDate(c.at) : null) || piloParseDate(d.dateFrom);
+}
+function piloBizDate(d){
+  return piloParseDate(d.dateLivraison) || piloParseDate(d.poseDate) || piloParseDate(d.dateFrom) || piloCreatedDate(d);
+}
+function piloMonthKey(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); }
+function piloMonthLabel(dt){ return dt.toLocaleDateString('fr-FR',{month:'short'}).replace('.','')+' '+String(dt.getFullYear()).slice(2); }
+
+const PILO_WON = ['accepte','facture','paye'];
+function piloIsWon(d){ return PILO_WON.includes(d.devisStatut); }
+function piloIsClosed(d){ return ['expédié','posé','retiré'].includes(d.statut); }
+function piloIsActive(d){ return ['nouveau','admin','production','emballage','stocké'].includes(d.statut); }
+
+function piloNiceMax(v){
+  if(v<=0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v/pow;
+  const nice = n<=1?1 : n<=2?2 : n<=2.5?2.5 : n<=5?5 : 10;
+  return nice*pow;
+}
+function piloBarChart(series){
+  const n = series.length||1, W=760, H=240, pad={t:18,r:14,b:34,l:54};
+  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+  const max = piloNiceMax(Math.max(0, ...series.map(s=>s.value)));
+  const x0=pad.l, yBase=pad.t+ch, slot=cw/n, bw=Math.min(44, slot*0.6);
+  const y = v => yBase - (max ? (v/max)*ch : 0);
+  let grid='';
+  for(let i=0;i<=4;i++){
+    const gv=max*i/4, gy=y(gv);
+    grid += `<line x1="${x0}" y1="${gy.toFixed(1)}" x2="${x0+cw}" y2="${gy.toFixed(1)}" style="stroke:var(--border)" stroke-width="1"/>`
+          + `<text x="${x0-8}" y="${(gy+3).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--ink-faint)">${piloEURk(gv)}</text>`;
+  }
+  let bars='';
+  series.forEach((s,i)=>{
+    const cx=x0+slot*i+slot/2, bx=cx-bw/2, ty=y(s.value), bh=Math.max(0, yBase-ty);
+    bars += `<rect x="${bx.toFixed(1)}" y="${ty.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" style="fill:var(--accent)"><title>${s.label} : ${piloEUR(s.value)}</title></rect>`
+          + (s.value>0 ? `<text x="${cx.toFixed(1)}" y="${(ty-5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="600" style="fill:var(--ink-soft)">${piloEURk(s.value)}</text>` : '')
+          + `<text x="${cx.toFixed(1)}" y="${(yBase+15).toFixed(1)}" text-anchor="middle" font-size="9.5" style="fill:var(--ink-faint)">${s.label}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" preserveAspectRatio="xMidYMid meet" role="img" aria-label="CA mensuel">${grid}${bars}<line x1="${x0}" y1="${yBase}" x2="${x0+cw}" y2="${yBase}" style="stroke:var(--border-strong)" stroke-width="1"/></svg>`;
+}
+function piloHBars(rows){
+  const max = Math.max(1, ...rows.map(r=>r.value));
+  if(!rows.length) return `<div class="empty-state" style="padding:24px"><i class="ti ti-chart-bar"></i>Aucune donnée à afficher</div>`;
+  return `<div style="display:flex;flex-direction:column;gap:12px">` + rows.map(r=>{
+    const pct = Math.round((r.value/max)*100);
+    const col = r.color || 'var(--accent)';
+    return `<div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px">
+        <span style="font-size:12.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.label}</span>
+        <span style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums">${piloEUR(r.value)}${r.sub?` <span style="color:var(--ink-faint);font-weight:400">· ${r.sub}</span>`:''}</span>
+      </div>
+      <div style="height:9px;background:var(--bg);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:6px;transition:width .55s var(--ease-out)"></div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+function renderPilotage(){
+  const mc = document.getElementById('main-content');
+  const D = dossiers || [];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const won        = D.filter(piloIsWon);
+  const caSigne    = won.reduce((s,d)=>s+ttc(d), 0);
+  const caEncaisse = D.filter(d=>d.devisStatut==='paye').reduce((s,d)=>s+ttc(d), 0);
+  const encours    = caSigne - caEncaisse;
+  const enAttente  = D.filter(d=>d.devisStatut==='en_attente');
+  const caEnAttente= enAttente.reduce((s,d)=>s+ttc(d), 0);
+  const refuse     = D.filter(d=>d.devisStatut==='refuse');
+  const decided    = won.length + refuse.length;
+  const taux       = decided ? Math.round(won.length/decided*100) : 0;
+  const actifs     = D.filter(piloIsActive);
+  const retards    = actifs.filter(d=>{ const dl=piloParseDate(d.dateLivraison); return dl && dl<today; });
+  const pctEnc     = caSigne ? Math.round(caEncaisse/caSigne*100) : 0;
+
+  // Délai moyen création -> livraison
+  const delais = [];
+  D.forEach(d=>{ const c=piloCreatedDate(d), l=piloParseDate(d.dateLivraison); if(c&&l){ const j=Math.round((l-c)/86400000); if(j>=0 && j<400) delais.push(j); } });
+  const delaiMoy = delais.length ? Math.round(delais.reduce((a,b)=>a+b,0)/delais.length) : 0;
+
+  // Série mensuelle (12 mois) — ancrée sur la date la plus récente présente dans les données
+  const wonDates = won.map(piloBizDate).filter(Boolean);
+  const anchor = wonDates.length ? new Date(Math.max(...wonDates.map(d=>d.getTime()))) : new Date();
+  const am = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const months = [];
+  for(let i=11;i>=0;i--){ const dt=new Date(am.getFullYear(), am.getMonth()-i, 1); months.push({key:piloMonthKey(dt), label:piloMonthLabel(dt), value:0}); }
+  const mIndex = {}; months.forEach((m,i)=>mIndex[m.key]=i);
+  won.forEach(d=>{ const bd=piloBizDate(d); if(!bd) return; const k=piloMonthKey(bd); if(k in mIndex) months[mIndex[k]].value += ttc(d); });
+  const caPeriode = months.reduce((s,m)=>s+m.value, 0);
+
+  // CA par commercial
+  const byCom = {};
+  won.forEach(d=>{ const k=d.createdBy||d.commercial||'—'; byCom[k]=(byCom[k]||0)+ttc(d); });
+  const comRows = Object.entries(byCom).map(([uid,v])=>({label:userName(uid)||'—', value:v}))
+                  .sort((a,b)=>b.value-a.value).slice(0,8);
+
+  // Pipeline des devis
+  const devStat = [
+    {k:'en_attente', l:'En attente', c:'var(--ink-faint)'},
+    {k:'accepte',    l:'Accepté',    c:'var(--accent)'},
+    {k:'facture',    l:'Facturé',    c:'var(--amber)'},
+    {k:'paye',       l:'Payé',       c:'var(--green)'},
+    {k:'refuse',     l:'Refusé',     c:'var(--red)'},
+  ].map(s=>{ const it=D.filter(d=>d.devisStatut===s.k); return {label:s.l, value:it.reduce((a,d)=>a+ttc(d),0), sub:it.length+' dossier'+(it.length>1?'s':''), color:s.c}; });
+
+  // Points d'attention
+  const dormants   = enAttente.filter(d=>{ const c=piloCreatedDate(d); return c && (today-c)/86400000 > 21; });
+  const impayes    = D.filter(d=> d.devisStatut!=='paye' && (d.devisStatut==='facture' || piloIsClosed(d)));
+  const caImpaye   = impayes.reduce((s,d)=>s+ttc(d), 0);
+  const aPlanifier = D.filter(d=> d.needPose && !d.poseDate && !piloIsClosed(d));
+
+  const kpi = (label,val,sub,color)=>`<div class="stat-card">
+    <div class="stat-label">${label}</div>
+    <div class="stat-value"${color?` style="color:${color}"`:''}>${val}</div>
+    <div class="stat-sub">${sub||''}</div></div>`;
+
+  const alertCard = (icon,color,bg,title,count,detail,items)=>`
+    <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;background:var(--paper);box-shadow:var(--shadow)">
+      <div style="display:flex;align-items:center;gap:11px;padding:12px 14px;background:${bg}">
+        <div style="width:30px;height:30px;border-radius:var(--radius-sm);background:#fff;color:${color};display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ${icon}" style="font-size:16px"></i></div>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;color:var(--ink)">${title}</div><div style="font-size:11px;color:var(--ink-soft)">${detail}</div></div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:${color}">${count}</div>
+      </div>
+      ${items.length
+        ? `<div>${items.slice(0,4).map(d=>`<div onclick="openFiche('${d.id}')" style="display:flex;justify-content:space-between;gap:8px;padding:8px 14px;border-top:1px solid var(--border);cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+            <span style="color:var(--ink);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.client}</span>
+            <span style="color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums">${d.id}</span></div>`).join('')}${items.length>4?`<div style="padding:7px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--ink-faint)">+ ${items.length-4} autre${items.length-4>1?'s':''}</div>`:''}</div>`
+        : `<div style="padding:11px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--ink-faint)"><i class="ti ti-check" style="color:var(--green);vertical-align:-1px"></i> Rien à signaler</div>`}
+    </div>`;
+
+  mc.innerHTML = `
+  <div class="page-header" style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+    <div>
+      <div class="page-header-label">Direction · Comptabilité</div>
+      <h1>Cockpit de pilotage</h1>
+      <p>Synthèse de l'activité commerciale et financière en temps réel.</p>
+    </div>
+    <button class="btn btn-secondary" onclick="piloExportCSV()"><i class="ti ti-download"></i> Exporter (CSV)</button>
+  </div>
+
+  <div class="stats-grid">
+    ${kpi('CA signé', piloEUR(caSigne), won.length+' devis gagné'+(won.length>1?'s':''))}
+    ${kpi('Encaissé', piloEUR(caEncaisse), pctEnc+'% du CA signé', 'var(--green)')}
+    ${kpi('Reste à encaisser', piloEUR(encours), 'devis gagnés non payés', encours>0?'var(--amber)':'var(--ink)')}
+    ${kpi('Taux de transformation', taux+' %', decided+' devis tranchés')}
+  </div>
+  <div class="stats-grid" style="margin-top:-8px">
+    ${kpi('Devis en attente', piloEUR(caEnAttente), enAttente.length+' à relancer')}
+    ${kpi('Délai moyen', delaiMoy+' j', 'création → livraison')}
+    ${kpi('Dossiers actifs', actifs.length, 'en cours de traitement')}
+    ${kpi('En retard', retards.length, retards.length?'livraison dépassée':'aucun retard', retards.length?'var(--red)':'var(--green)')}
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd"><span class="card-title">CA mensuel — devis gagnés</span><span style="font-size:12px;color:var(--ink-faint)">12 mois · total ${piloEUR(caPeriode)}</span></div>
+    <div class="card-body">${piloBarChart(months)}</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px" class="pilo-2col">
+    <div class="card">
+      <div class="card-hd"><span class="card-title">CA par commercial</span><span style="font-size:12px;color:var(--ink-faint)">devis gagnés</span></div>
+      <div class="card-body">${piloHBars(comRows)}</div>
+    </div>
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Pipeline des devis</span><span style="font-size:12px;color:var(--ink-faint)">par statut</span></div>
+      <div class="card-body">${piloHBars(devStat)}</div>
+    </div>
+  </div>
+
+  <div class="section-header" style="margin-top:4px;margin-bottom:14px">
+    <div class="section-title"><i class="ti ti-alert-triangle" style="color:var(--amber);margin-right:7px;vertical-align:-2px"></i>Points d'attention</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px" class="pilo-2col">
+    ${alertCard('ti-clock','var(--amber)','var(--amber-light)','Devis dormants', dormants.length, 'en attente depuis plus de 21 jours', dormants)}
+    ${alertCard('ti-alarm','var(--red)','var(--red-light)','Livraisons en retard', retards.length, 'dossier actif, échéance dépassée', retards)}
+    ${alertCard('ti-cash','var(--coral)','var(--coral-light)','À encaisser · '+piloEUR(caImpaye), impayes.length, 'livrés ou facturés, non payés', impayes)}
+    ${alertCard('ti-calendar-event','var(--accent-deep)','var(--accent-light)','Poses à planifier', aPlanifier.length, 'pose requise, sans date fixée', aPlanifier)}
+  </div>`;
+}
+
+function piloExportCSV(){
+  const sep = ';';
+  const devLbl = {en_attente:'En attente', accepte:'Accepté', refuse:'Refusé', facture:'Facturé', paye:'Payé'};
+  const esc = v => { v = (v==null?'':String(v)); return /[";\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const head = ['N° dossier','Client','Téléphone','Email','CP','Ville','Produit','Statut','Statut devis','HT (€)','TVA %','TTC (€)','Date livraison','Commercial'];
+  const lines = (dossiers||[]).map(d => [
+    d.id, d.client, d.tel, d.email, d.cp, d.ville, d.structure,
+    STATUT_LABEL[d.statut]||d.statut, devLbl[d.devisStatut]||'',
+    (d.ht||0).toFixed(2).replace('.',','), (d.tva!=null?d.tva:20),
+    ttc(d).toFixed(2).replace('.',','), d.dateLivraison||'', userName(d.createdBy)||''
+  ].map(esc).join(sep));
+  const csv = '\uFEFF' + [head.join(sep), ...lines].join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'jmbaches_dossiers_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  if(typeof showToast==='function') showToast('Export CSV téléchargé');
+}
 
 </script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
