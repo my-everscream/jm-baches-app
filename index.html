@@ -1507,7 +1507,7 @@ function goTab(tab) {
   else if(tab==='planning') renderPlanning();
   else if(tab==='pilotage') renderPilotage();
   else if(tab==='compta') renderCompta();
-  else if(tab==='horaires') renderHoraires();
+  else if(tab==='horaires') loadHoraires().then(()=>renderHoraires());
   else if(tab==='journal') renderJournal();
   else if(tab==='notifs') renderNotifs();
   else if(tab==='users') renderUsers();
@@ -1528,7 +1528,11 @@ function filteredDossiers(liste) {
     (d.options||'').toLowerCase().includes(q) ||
     (d.remarques||'').toLowerCase().includes(q) ||
     (d.adresse||'').toLowerCase().includes(q) ||
-    (d.tel||'').toLowerCase().includes(q)
+    (d.tel||'').toLowerCase().includes(q) ||
+    (d.email||'').toLowerCase().includes(q) ||
+    (d.ville||'').toLowerCase().includes(q) ||
+    (d.cp||'').toLowerCase().includes(q) ||
+    (d.ref||'').toLowerCase().includes(q)
   );
 }
 
@@ -1833,8 +1837,12 @@ function renderDos() {
             style="padding:7px 12px 7px 34px;width:240px"
             oninput="filterDos(this.value)">
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="toggleFiltresAvances()" id="btn-filtres-avances" style="${(dosCommFilter||dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?'color:var(--accent);border-color:var(--accent)':''}">
-          <i class="ti ti-adjustments-horizontal"></i> Filtres${(dosCommFilter||dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?' <span style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:10px">actifs</span>':''}
+        ${can('view_all') ? `<select onchange="dosCommFilter=this.value;applyFiltres()" style="padding:7px 10px;font-size:13px;max-width:160px" title="Filtrer par commercial">
+          <option value="" ${!dosCommFilter?'selected':''}>Tous les commerciaux</option>
+          ${users.filter(u=>u.active&&(u.role==='commercial'||u.role==='admin'||u.role==='direction')).map(u=>`<option value="${u.id}" ${dosCommFilter===u.id?'selected':''}>${u.name}</option>`).join('')}
+        </select>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="toggleFiltresAvances()" id="btn-filtres-avances" style="${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?'color:var(--accent);border-color:var(--accent)':''}">
+          <i class="ti ti-adjustments-horizontal"></i> Filtres${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?' <span style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:10px">actifs</span>':''}
         </button>
         ${can('create')?`<button class="btn btn-primary" onclick="openNewDos()"><i class="ti ti-plus"></i> Nouveau dossier</button>`:''}
       </div>
@@ -3745,8 +3753,19 @@ function setDosFieldDirect(id,k,v) { const d=dossiers.find(x=>x.id===id); if(d){
 // Structure : { semaine: { poseurId: { lun:{deb,fin,h}, mar:..., ... } } }
 // semaine = "2024-W23" (ISO week)
 let horairesData = {};
-try { const h = localStorage.getItem('jmb_horaires'); if(h) horairesData = JSON.parse(h); } catch(e){}
-function saveHoraires() { try { localStorage.setItem('jmb_horaires', JSON.stringify(horairesData)); } catch(e){} }
+// Horaires stockés dans Firestore (meta/horaires) — partagés entre tous les appareils
+async function loadHoraires() {
+  if(!window._db) return;
+  try {
+    const doc = await window._db.collection('meta').doc('horaires').get();
+    if(doc.exists) horairesData = doc.data().data || {};
+  } catch(e) { console.warn('loadHoraires:', e); }
+}
+function saveHoraires() {
+  if(!window._db) return;
+  window._db.collection('meta').doc('horaires').set({ data: horairesData }, { merge: false })
+    .catch(e => console.error('saveHoraires:', e));
+}
 
 function getWeekKey(offset=0) {
   const d = new Date();
@@ -4246,27 +4265,58 @@ function openEditUser(uid) {
   openModal('modal-user');
 }
 document.getElementById('u-role').addEventListener('change',syncPerms);
-function saveUser() {
+async function saveUser() {
   const name=document.getElementById('u-name').value.trim();
   const login=document.getElementById('u-login').value.trim();
   const email=document.getElementById('u-email').value.trim();
   const pwd1=document.getElementById('u-pwd').value;
   const pwd2=document.getElementById('u-pwd2').value;
   if(!name||!login){alert('Nom et identifiant requis');return;}
-  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert('Adresse email invalide');return;}
+  if(!email){alert('L\'adresse email est requise pour créer un compte.');return;}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){alert('Adresse email invalide');return;}
   if(pwd1 && pwd1!==pwd2){alert('Les mots de passe ne correspondent pas');return;}
   const role=document.getElementById('u-role').value;
   const perms=[...document.querySelectorAll('#perms-grid input:checked')].map(cb=>cb.value);
-  const pwd=pwd1||'1234';
+
   if(editingUserId) {
+    // Modification d'un compte existant
     const u=users.find(x=>x.id===editingUserId);
     u.name=name; u.login=login; u.email=email; u.role=role; u.perms=perms;
-    if(pwd1) u.pwd=pwd;
+    // Ne pas modifier le pwd — géré par Firebase Auth
     if(u.id===currentUser.id) { currentUser=u; document.getElementById('top-name').textContent=u.name; document.getElementById('top-role').textContent=ROLE_LABELS[u.role]; }
+    saveData(); closeModal('modal-user'); buildLoginSelect(); renderUsers();
   } else {
-    users.push({id:'u'+nextUserId++,name,login,email,role,pwd,active:true,perms});
+    // Nouveau compte : créer dans Firebase Auth puis dans Firestore
+    const btn = document.querySelector('#modal-user .btn-primary');
+    if(btn) { btn.disabled=true; btn.innerHTML='<i class="ti ti-loader"></i> Création…'; }
+    try {
+      // Créer le compte Firebase Auth avec un mot de passe temporaire aléatoire
+      const tmpPwd = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + 'A1!';
+      const cred = await firebase.auth().createUserWithEmailAndPassword(email, tmpPwd);
+      const uid = cred.user.uid;
+
+      // Créer le profil Firestore avec l'UID comme ID (sans pwd)
+      const profileData = { name, login, email, role, perms, active: true };
+      await window._db.collection('users').doc(uid).set(profileData);
+
+      // Envoyer l'email de définition de mot de passe
+      await firebase.auth().sendPasswordResetEmail(email);
+
+      // Ajouter localement
+      users.push({ id: uid, ...profileData });
+      saveData(); closeModal('modal-user'); buildLoginSelect(); renderUsers();
+      showToast(`✓ Compte créé — email de définition de mot de passe envoyé à ${email}`);
+    } catch(e) {
+      const msgs = {
+        'auth/email-already-in-use': 'Cette adresse email est déjà utilisée dans Firebase Auth.',
+        'auth/invalid-email': 'Adresse email invalide.',
+        'auth/weak-password': 'Mot de passe trop faible (min. 6 caractères).',
+      };
+      alert(msgs[e.code] || 'Erreur : ' + e.message);
+    } finally {
+      if(btn) { btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i> Enregistrer'; }
+    }
   }
-  saveData(); closeModal('modal-user'); buildLoginSelect(); renderUsers();
 }
 function toggleActive(uid) {
   const u=users.find(x=>x.id===uid); if(!u||u.id===currentUser.id) return;
