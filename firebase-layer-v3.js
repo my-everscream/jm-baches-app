@@ -22,6 +22,16 @@ let _firestoreReady = false;
 let _unsubUsers, _unsubDossiers, _unsubNotifs, _unsubMessages;
 window._chatMessages = [];
 
+// Affiche un message propre au lieu de planter sur permission-denied
+function handleFirestoreError(e, context) {
+  if (e.code === 'permission-denied') {
+    if (typeof showToast === 'function') showToast('⛔ Action non autorisée' + (context ? ' : ' + context : ''));
+    else console.warn('Permission refusée :', context, e);
+  } else {
+    console.error('Firestore error' + (context ? ' [' + context + ']' : ''), e);
+  }
+}
+
 function startFirestoreListeners() {
   return new Promise(resolve => {
     let loaded = 0;
@@ -38,7 +48,7 @@ function startFirestoreListeners() {
         if (typeof currentTab !== 'undefined' && currentTab === 'users') renderUsers?.();
       }
       check();
-    });
+    }, e => { handleFirestoreError(e, 'users'); check(); });
 
     _unsubDossiers = _db.collection('dossiers')
       .orderBy(firebase.firestore.FieldPath.documentId(), 'desc')
@@ -46,7 +56,7 @@ function startFirestoreListeners() {
         dossiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (_firestoreReady) refreshCurrentView();
         check();
-      });
+      }, e => { handleFirestoreError(e, 'dossiers'); check(); });
 
     _unsubNotifs = _db.collection('notifications').onSnapshot(snap => {
       notifications = snap.docs
@@ -54,7 +64,7 @@ function startFirestoreListeners() {
         .sort((a, b) => (String(b.id) > String(a.id) ? 1 : -1));
       if (_firestoreReady) updateBadge?.();
       check();
-    });
+    }, e => { handleFirestoreError(e, 'notifications'); check(); });
 
     _unsubMessages = _db.collection('messages')
       .orderBy('at', 'asc')
@@ -85,7 +95,7 @@ function startFirestoreListeners() {
           buildChatTabs?.();
           renderChatMessages?.();
           }
-      });
+      }, e => { handleFirestoreError(e, 'messages'); });
   });
 }
 

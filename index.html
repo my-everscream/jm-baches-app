@@ -4356,11 +4356,12 @@ async function saveUser() {
       showToast(`✓ Compte créé — email de définition de mot de passe envoyé à ${email}`);
     } catch(e) {
       const msgs = {
-        'auth/email-already-in-use': 'Cette adresse email est déjà utilisée dans Firebase Auth.',
+        'auth/email-already-in-use': 'Cette adresse email est déjà utilisée.',
         'auth/invalid-email': 'Adresse email invalide.',
         'auth/weak-password': 'Mot de passe trop faible (min. 6 caractères).',
+        'permission-denied': 'Vous n\'avez pas les droits pour créer un compte.',
       };
-      alert(msgs[e.code] || 'Erreur : ' + e.message);
+      alert(msgs[e.code] || msgs[e.message] || 'Erreur : ' + e.message);
     } finally {
       if(btn) { btn.disabled=false; btn.innerHTML='<i class="ti ti-check"></i> Enregistrer'; }
     }
@@ -4413,7 +4414,7 @@ async function saveProfilInfo() {
     msg.style.color = 'var(--green)'; msg.textContent = '✓ Profil mis à jour';
   } catch(e) {
     const msgs = { 'auth/requires-recent-login': 'Reconnectez-vous pour changer votre email.', 'auth/email-already-in-use': 'Cet email est déjà utilisé.' };
-    msg.style.color = 'var(--red)'; msg.textContent = msgs[e.code] || 'Erreur : ' + e.message;
+    msg.style.color = 'var(--red)'; msg.textContent = msgs[e.code] || (e.code === 'permission-denied' ? 'Action non autorisée.' : 'Erreur : ' + e.message);
   }
 }
 
@@ -4499,18 +4500,35 @@ Vous allez supprimer ${n} dossier${n>1?'s':''} définitivement.
   doDelete().catch(e => { console.error(e); showToast('Erreur lors de la suppression'); });
 }
 
-function deleteUser(uid) {
+async function deleteUser(uid) {
   const u = users.find(x => x.id === uid);
   if (!u || u.id === currentUser.id) return;
-  if (!confirm(`Supprimer le compte de ${u.name} ?\n\nCette action supprime le profil de l'app.\n⚠️ Pensez aussi à supprimer le compte dans Firebase Auth (console.firebase.google.com → Authentication → Utilisateurs).`)) return;
-  // Supprimer dans Firestore
-  if (window._db) {
-    window._db.collection('users').doc(uid).delete().catch(e => console.error(e));
+  if (!confirm(`Supprimer le compte de ${u.name} ?\n\nCette action :\n• Supprime le profil Firestore\n• Désactive immédiatement l'accès\n• Un lien vous sera affiché pour finaliser la suppression du compte Firebase Auth`)) return;
+
+  try {
+    // 1. Supprimer le profil Firestore
+    if (window._db) {
+      await window._db.collection('users').doc(uid).delete();
+    }
+    // 2. Supprimer localement
+    users = users.filter(x => x.id !== uid);
+    buildLoginSelect();
+    renderUsers();
+
+    // 3. Afficher lien vers Firebase Console pour supprimer le compte Auth
+    const consoleUrl = `https://console.firebase.google.com/project/jm-baches/authentication/users`;
+    const msg = document.createElement('div');
+    msg.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--charcoal);color:#fff;padding:14px 20px;border-radius:var(--radius-lg);font-size:13px;z-index:9999;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-lg);max-width:500px';
+    msg.innerHTML = `<i class="ti ti-check" style="color:var(--green);font-size:16px;flex-shrink:0"></i>
+      <span>Profil de <strong>${u.name}</strong> supprimé. Pensez à supprimer le compte Auth (UID : <code style="font-size:11px;opacity:.7">${uid.slice(0,12)}…</code>)</span>
+      <a href="${consoleUrl}" target="_blank" style="color:var(--accent-light);white-space:nowrap;font-weight:600">Ouvrir →</a>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:16px;padding:0 4px">×</button>`;
+    document.body.appendChild(msg);
+    setTimeout(() => msg.remove(), 12000);
+  } catch(e) {
+    if (e.code === 'permission-denied') showToast('⛔ Vous n\'avez pas les droits pour supprimer ce compte');
+    else { console.error('deleteUser error:', e); showToast('Erreur lors de la suppression'); }
   }
-  users = users.filter(x => x.id !== uid);
-  buildLoginSelect();
-  renderUsers();
-  showToast(`Compte de ${u.name} supprimé`);
 }
 
 function supprimerDossier(dosId, e) {
