@@ -843,6 +843,60 @@ a:focus-visible, button:focus-visible,
 </div>
 
 <!-- MODAL MOT DE PASSE OUBLIÉ -->
+<div id="modal-profil" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-hd">
+      <div class="modal-title"><i class="ti ti-user-circle" style="color:var(--accent)"></i> Mon profil</div>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-profil')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--bg);border-radius:var(--radius-lg)">
+        <div class="avatar" id="profil-av" style="width:44px;height:44px;font-size:17px"></div>
+        <div>
+          <div style="font-size:15px;font-weight:700" id="profil-name-display"></div>
+          <div style="font-size:12px;color:var(--ink-faint)" id="profil-role-display"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint);margin-bottom:10px">Informations</div>
+        <div class="form-grid-2">
+          <div class="form-group"><label class="form-label">Nom affiché</label><input type="text" id="profil-name" placeholder="Votre nom"></div>
+          <div class="form-group"><label class="form-label">Email</label><input type="email" id="profil-email" placeholder="votre@email.com"></div>
+        </div>
+        <div id="profil-info-msg" style="font-size:12px;margin-top:6px"></div>
+        <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveProfilInfo()"><i class="ti ti-check"></i> Enregistrer les modifications</button>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-faint);margin-bottom:10px">Changer le mot de passe</div>
+        <div class="form-group"><label class="form-label">Nouveau mot de passe</label><input type="password" id="profil-pwd1" placeholder="Au moins 6 caractères"></div>
+        <div class="form-group"><label class="form-label">Confirmer</label><input type="password" id="profil-pwd2" placeholder="Répéter le mot de passe"></div>
+        <div id="profil-pwd-msg" style="font-size:12px;margin-top:6px"></div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="saveProfilPwd()"><i class="ti ti-lock"></i> Changer le mot de passe</button>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal('modal-profil')">Fermer</button>
+    </div>
+  </div>
+</div>
+<div id="modal-api-key"  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hd"><div class="modal-title"><i class="ti ti-key" style="color:var(--accent)"></i> Clé API Claude</div><button class="btn btn-ghost btn-sm" onclick="closeModal('modal-api-key')"><i class="ti ti-x"></i></button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--ink-faint);margin-bottom:16px">Nécessaire pour l'import de PDF scannés depuis Mégao. Les exports PDF numériques fonctionnent sans clé.</p>
+      <div class="form-group">
+        <label class="form-label">Clé API (sk-ant-...)</label>
+        <input type="password" id="modal-api-key-input" placeholder="sk-ant-api03-..." style="font-family:'JetBrains Mono',monospace;font-size:12px">
+      </div>
+      <div id="modal-api-key-status" style="font-size:12px;margin-top:8px"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="clearApiKeyModal()"><i class="ti ti-trash"></i> Supprimer</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-api-key')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveApiKeyModal()"><i class="ti ti-check"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
 <div id="modal-reset-pwd" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
   <div style="background:var(--paper);border-radius:12px;padding:28px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="font-size:18px;font-weight:700;margin-bottom:6px">Réinitialiser le mot de passe</div>
@@ -881,11 +935,14 @@ a:focus-visible, button:focus-visible,
         <i class="ti ti-bell" style="font-size:18px"></i>
         <span class="notif-count hidden" id="notif-count">0</span>
       </button>
-      <div class="avatar" id="top-av"></div>
-      <div>
-        <div style="font-size:13px;font-weight:500;color:#fff" id="top-name"></div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5)" id="top-role"></div>
+      <div onclick="openProfilModal()" style="display:flex;align-items:center;gap:9px;cursor:pointer;padding:4px 8px;border-radius:var(--radius);transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background='transparent'" title="Mon profil">
+        <div class="avatar" id="top-av"></div>
+        <div>
+          <div style="font-size:13px;font-weight:500;color:#fff" id="top-name"></div>
+          <div style="font-size:11px;color:rgba(255,255,255,.5)" id="top-role"></div>
+        </div>
       </div>
+      <button id="btn-api-key" class="btn btn-sm" onclick="openApiKeyModal()" style="color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.2);display:none" title="Configurer la clé API Claude"><i class="ti ti-key"></i></button>
       <button class="btn btn-sm" onclick="doLogout()" style="color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.2)"><i class="ti ti-logout"></i> Déconnexion</button>
     </div>
   </div>
@@ -1386,6 +1443,8 @@ function connectUser(u) {
   av.textContent=initials(u.name); av.style.background=rc.bg; av.style.color=rc.c;
   document.getElementById('top-name').textContent=u.name;
   document.getElementById('top-role').textContent=ROLE_LABELS[u.role];
+  const btnApi = document.getElementById('btn-api-key');
+  if(btnApi) btnApi.style.display = can('create') ? '' : 'none';
   buildNav();
   checkRetards();
   goTab('dashboard');
@@ -4193,17 +4252,7 @@ function renderUsers() {
       <button class="btn btn-primary" onclick="openNewUser()"><i class="ti ti-plus"></i> Nouveau compte</button>
     </div>
   </div>
-  ${can('create')?`
-  <div class="card" style="padding:16px 20px;margin-bottom:20px">
-    <div style="font-size:13px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px"><i class="ti ti-key" style="color:var(--accent)"></i> Clé API Claude — Import PDF Mégao scanné</div>
-    <div style="font-size:12px;color:var(--ink-faint);margin-bottom:12px">Nécessaire uniquement pour les PDF scannés ou photos. Pour les exports PDF numériques de Mégao, l'import fonctionne sans clé.</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input type="password" id="api-key-input" value="${apiKey}" placeholder="sk-ant-..." style="max-width:420px;font-family:'JetBrains Mono',monospace;font-size:12px">
-      <button class="btn btn-primary btn-sm" onclick="saveApiKey()"><i class="ti ti-check"></i> Enregistrer</button>
-      ${apiKey?`<button class="btn btn-ghost btn-sm" onclick="clearApiKey()"><i class="ti ti-trash"></i></button>`:''}
-    </div>
-    ${apiKey?`<div style="font-size:11px;color:var(--green);margin-top:8px"><i class="ti ti-circle-check"></i> Clé configurée</div>`:`<div style="font-size:11px;color:var(--ink-faint);margin-top:8px">Aucune clé configurée</div>`}
-  </div>`:''}
+
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
     ${users.map(u=>{
       const rc=ROLE_COLORS[u.role]||{bg:'#F1EFE8',c:'#444'};
@@ -4320,6 +4369,100 @@ async function saveUser() {
 function toggleActive(uid) {
   const u=users.find(x=>x.id===uid); if(!u||u.id===currentUser.id) return;
   u.active=!u.active; saveData(); buildLoginSelect(); renderUsers();
+}
+
+function openProfilModal() {
+  if(!currentUser) return;
+  const av = document.getElementById('profil-av');
+  if(av) { av.textContent = initials(currentUser.name); av.style.background = (ROLE_COLORS[currentUser.role]||{bg:'#aaa'}).bg; av.style.color = (ROLE_COLORS[currentUser.role]||{c:'#fff'}).c; }
+  document.getElementById('profil-name-display').textContent = currentUser.name;
+  document.getElementById('profil-role-display').textContent = ROLE_LABELS[currentUser.role] || currentUser.role;
+  document.getElementById('profil-name').value = currentUser.name || '';
+  document.getElementById('profil-email').value = currentUser.email || '';
+  document.getElementById('profil-pwd1').value = '';
+  document.getElementById('profil-pwd2').value = '';
+  document.getElementById('profil-info-msg').textContent = '';
+  document.getElementById('profil-pwd-msg').textContent = '';
+  const modal = document.getElementById('modal-profil');
+  if(modal) modal.style.display = 'flex';
+}
+
+async function saveProfilInfo() {
+  const name  = document.getElementById('profil-name').value.trim();
+  const email = document.getElementById('profil-email').value.trim().toLowerCase();
+  const msg   = document.getElementById('profil-info-msg');
+  if(!name) { msg.style.color='var(--red)'; msg.textContent='Le nom est requis.'; return; }
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.style.color='var(--red)'; msg.textContent='Email invalide.'; return; }
+  try {
+    // Mettre à jour Firebase Auth si email changé
+    if(email && email !== currentUser.email && firebase.auth().currentUser) {
+      await firebase.auth().currentUser.updateEmail(email);
+    }
+    // Mettre à jour Firestore
+    const updates = { name };
+    if(email) updates.email = email;
+    await window._db.collection('users').doc(currentUser.id).update(updates);
+    // Mettre à jour localement
+    currentUser.name = name;
+    if(email) currentUser.email = email;
+    const u = users.find(x => x.id === currentUser.id);
+    if(u) { u.name = name; if(email) u.email = email; }
+    document.getElementById('top-name').textContent = name;
+    document.getElementById('profil-name-display').textContent = name;
+    const av = document.getElementById('top-av');
+    if(av) av.textContent = initials(name);
+    msg.style.color = 'var(--green)'; msg.textContent = '✓ Profil mis à jour';
+  } catch(e) {
+    const msgs = { 'auth/requires-recent-login': 'Reconnectez-vous pour changer votre email.', 'auth/email-already-in-use': 'Cet email est déjà utilisé.' };
+    msg.style.color = 'var(--red)'; msg.textContent = msgs[e.code] || 'Erreur : ' + e.message;
+  }
+}
+
+async function saveProfilPwd() {
+  const pwd1 = document.getElementById('profil-pwd1').value;
+  const pwd2 = document.getElementById('profil-pwd2').value;
+  const msg  = document.getElementById('profil-pwd-msg');
+  if(!pwd1) { msg.style.color='var(--red)'; msg.textContent='Entrez un nouveau mot de passe.'; return; }
+  if(pwd1.length < 6) { msg.style.color='var(--red)'; msg.textContent='6 caractères minimum.'; return; }
+  if(pwd1 !== pwd2) { msg.style.color='var(--red)'; msg.textContent='Les mots de passe ne correspondent pas.'; return; }
+  try {
+    await firebase.auth().currentUser.updatePassword(pwd1);
+    msg.style.color = 'var(--green)'; msg.textContent = '✓ Mot de passe mis à jour';
+    document.getElementById('profil-pwd1').value = '';
+    document.getElementById('profil-pwd2').value = '';
+  } catch(e) {
+    const msgs = { 'auth/requires-recent-login': 'Reconnectez-vous pour changer le mot de passe.', 'auth/weak-password': 'Mot de passe trop faible.' };
+    msg.style.color = 'var(--red)'; msg.textContent = msgs[e.code] || 'Erreur : ' + e.message;
+  }
+}
+
+function openApiKeyModal() {
+  const apiKey = localStorage.getItem('jmb_claude_api_key') || '';
+  const inp = document.getElementById('modal-api-key-input');
+  const status = document.getElementById('modal-api-key-status');
+  if(inp) inp.value = apiKey;
+  if(status) {
+    status.textContent = apiKey ? '✓ Clé configurée' : 'Aucune clé configurée';
+    status.style.color = apiKey ? 'var(--green)' : 'var(--ink-faint)';
+  }
+  const modal = document.getElementById('modal-api-key');
+  if(modal) { modal.style.display = 'flex'; setTimeout(()=>inp?.focus(), 100); }
+}
+function saveApiKeyModal() {
+  const val = document.getElementById('modal-api-key-input')?.value.trim();
+  if(!val) { alert('Entrez une clé API valide.'); return; }
+  localStorage.setItem('jmb_claude_api_key', val);
+  const status = document.getElementById('modal-api-key-status');
+  if(status) { status.textContent = '✓ Clé enregistrée'; status.style.color = 'var(--green)'; }
+  setTimeout(() => closeModal('modal-api-key'), 1000);
+}
+function clearApiKeyModal() {
+  if(!confirm('Supprimer la clé API ?')) return;
+  localStorage.removeItem('jmb_claude_api_key');
+  const inp = document.getElementById('modal-api-key-input');
+  const status = document.getElementById('modal-api-key-status');
+  if(inp) inp.value = '';
+  if(status) { status.textContent = 'Clé supprimée'; status.style.color = 'var(--ink-faint)'; }
 }
 
 function confirmResetDossiers() {

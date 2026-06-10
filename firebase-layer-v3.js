@@ -101,27 +101,52 @@ function stopFirestoreListeners() {
 
 window.saveData = async function saveData() {
   if (!_firestoreReady) return;
+  let hasError = false;
+
+  // 1. Dossiers
   try {
     const batch = _db.batch();
     dossiers.forEach(d => {
       const data = { ...d }; delete data.id;
       batch.set(_db.collection('dossiers').doc(d.id), data, { merge: true });
     });
+    await batch.commit();
+  } catch (e) {
+    console.error('Firestore saveData [dossiers] error:', e);
+    hasError = true;
+  }
+
+  // 2. Users — uniquement si l'utilisateur a le droit d'écrire
+  try {
+    const batch = _db.batch();
     users.forEach(u => {
       const data = { ...u }; delete data.id;
-      delete data.pwd;   // ne jamais écrire le mot de passe dans Firestore
+      delete data.pwd;
       batch.set(_db.collection('users').doc(u.id), data, { merge: true });
     });
+    await batch.commit();
+  } catch (e) {
+    // Permission refusée pour cet utilisateur — silencieux, pas une erreur bloquante
+    if (e.code !== 'permission-denied') {
+      console.error('Firestore saveData [users] error:', e);
+      hasError = true;
+    }
+  }
+
+  // 3. Notifications
+  try {
+    const batch = _db.batch();
     notifications.forEach(n => {
       const data = { ...n }; delete data.id;
       batch.set(_db.collection('notifications').doc(String(n.id)), data, { merge: true });
     });
     await batch.commit();
-    showSaveIndicator('ok');
   } catch (e) {
-    console.error('Firestore saveData error:', e);
-    showSaveIndicator('error');
+    console.error('Firestore saveData [notifications] error:', e);
+    hasError = true;
   }
+
+  showSaveIndicator(hasError ? 'error' : 'ok');
 };
 
 window.doLogin = async function doLogin() {
