@@ -109,6 +109,7 @@ window.saveData = async function saveData() {
     });
     users.forEach(u => {
       const data = { ...u }; delete data.id;
+      delete data.pwd;   // ne jamais écrire le mot de passe dans Firestore
       batch.set(_db.collection('users').doc(u.id), data, { merge: true });
     });
     notifications.forEach(n => {
@@ -178,9 +179,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await startFirestoreListeners();
       _firestoreReady = true;
       showLoadingOverlay(false);
-      const u = users.find(x =>
-        x.email && x.email.toLowerCase() === firebaseUser.email.toLowerCase() && x.active
-      );
+      const u = users.find(x => x.id === firebaseUser.uid && x.active)
+             || users.find(x => x.email && x.email.toLowerCase() === firebaseUser.email.toLowerCase() && x.active);
       if (u) {
         connectUser(u);
       } else {
@@ -210,7 +210,7 @@ window.seedFirestore = async function seedFirestore() {
   const _dos    = typeof INITIAL_DOSSIERS      !== 'undefined' ? INITIAL_DOSSIERS      : dossiers;
   const _notifs = typeof INITIAL_NOTIFICATIONS !== 'undefined' ? INITIAL_NOTIFICATIONS : notifications;
   const batch = _db.batch();
-  _users.forEach(u => { const data = { ...u }; delete data.id; batch.set(_db.collection('users').doc(u.id), data); });
+  _users.forEach(u => { const data = { ...u }; delete data.id; delete data.pwd; batch.set(_db.collection('users').doc(u.id), data); });
   _dos.forEach(d => { const data = { ...d }; delete data.id; batch.set(_db.collection('dossiers').doc(d.id), data); });
   _notifs.forEach(n => { const data = { ...n }; delete data.id; batch.set(_db.collection('notifications').doc(String(n.id)), data); });
   await batch.commit();

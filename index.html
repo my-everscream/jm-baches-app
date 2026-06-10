@@ -4518,13 +4518,20 @@ function openChatConv(convId, userId) {
   }
   document.getElementById('chat-panel-title').textContent = title;
 
-  // Marquer tous les messages non lus de cette conv comme lus dans Firestore
+  // Marquer tous les messages non lus de cette conv comme lus
   if (window._db && currentUser) {
     const unreadMsgs = (window._chatMessages || []).filter(m =>
       m.convId === convId &&
       m.from !== currentUser.id &&
       (!m.readBy || !m.readBy.includes(currentUser.id))
     );
+    // Mise à jour optimiste locale IMMÉDIATE — évite que le prochain snapshot
+    // recalcule unread=1 avant que Firestore confirme le readBy
+    unreadMsgs.forEach(m => {
+      if (!m.readBy) m.readBy = [];
+      if (!m.readBy.includes(currentUser.id)) m.readBy = [...m.readBy, currentUser.id];
+    });
+    // Puis persister dans Firestore en arrière-plan
     unreadMsgs.forEach(m => {
       window._db.collection('messages').doc(m.id).update({
         readBy: (window._FieldValue || firebase.firestore.FieldValue).arrayUnion(currentUser.id)
@@ -4910,6 +4917,17 @@ function piloBizDate(d){
 function piloMonthKey(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'); }
 function piloMonthLabel(dt){ return dt.toLocaleDateString('fr-FR',{month:'short'}).replace('.','')+' '+String(dt.getFullYear()).slice(2); }
 
+// Table de correspondance anciens IDs → noms (pour les dossiers créés avant la migration)
+const PILO_LEGACY = {
+  'u1':'Nicolas','u2':'Sophie M.','u3':'Antoine V.','u4':'Paul R.',
+  'u5':'Jean-Pierre','u6':'Lucie B.','u7':'Marc D.','u8':'Achats-volets',
+  'u9':'Service Emballage','u10':'Sacha'
+};
+function piloUserName(uid){
+  if(!uid||uid==='—') return '—';
+  if(PILO_LEGACY[uid]) return PILO_LEGACY[uid];
+  return userName(uid)||uid;
+}
 const PILO_WON = ['accepte','facture','paye'];
 function piloIsWon(d){ return PILO_WON.includes(d.devisStatut); }
 function piloIsClosed(d){ return ['expédié','posé','retiré'].includes(d.statut); }
@@ -4997,7 +5015,7 @@ function renderPilotage(){
   // CA par commercial
   const byCom = {};
   won.forEach(d=>{ const k=d.createdBy||d.commercial||'—'; byCom[k]=(byCom[k]||0)+ttc(d); });
-  const comRows = Object.entries(byCom).map(([uid,v])=>({label:userName(uid)||'—', value:v}))
+  const comRows = Object.entries(byCom).map(([uid,v])=>({label:piloUserName(uid), value:v}))
                   .sort((a,b)=>b.value-a.value).slice(0,8);
 
   // Pipeline des devis
@@ -5093,7 +5111,7 @@ function piloExportCSV(){
     d.id, d.client, d.tel, d.email, d.cp, d.ville, d.structure,
     STATUT_LABEL[d.statut]||d.statut, devLbl[d.devisStatut]||'',
     (d.ht||0).toFixed(2).replace('.',','), (d.tva!=null?d.tva:20),
-    ttc(d).toFixed(2).replace('.',','), d.dateLivraison||'', userName(d.createdBy)||''
+    ttc(d).toFixed(2).replace('.',','), d.dateLivraison||'', piloUserName(d.createdBy)||''
   ].map(esc).join(sep));
   const csv = '\uFEFF' + [head.join(sep), ...lines].join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
