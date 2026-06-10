@@ -879,7 +879,7 @@ a:focus-visible, button:focus-visible,
     </div>
   </div>
 </div>
-<div id="modal-api-key"  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+<div id="modal-api-key" class="modal-overlay">
   <div class="modal" style="max-width:480px">
     <div class="modal-hd"><div class="modal-title"><i class="ti ti-key" style="color:var(--accent)"></i> Clé API Claude</div><button class="btn btn-ghost btn-sm" onclick="closeModal('modal-api-key')"><i class="ti ti-x"></i></button></div>
     <div class="modal-body">
@@ -4444,8 +4444,8 @@ function openApiKeyModal() {
     status.textContent = apiKey ? '✓ Clé configurée' : 'Aucune clé configurée';
     status.style.color = apiKey ? 'var(--green)' : 'var(--ink-faint)';
   }
-  const modal = document.getElementById('modal-api-key');
-  if(modal) { modal.style.display = 'flex'; setTimeout(()=>inp?.focus(), 100); }
+  openModal('modal-api-key');
+  setTimeout(()=>inp?.focus(), 100);
 }
 function saveApiKeyModal() {
   const val = document.getElementById('modal-api-key-input')?.value.trim();
