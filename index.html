@@ -4041,8 +4041,8 @@ function renderCompta() {
   </div>
   <div class="table-wrap">
     <table>
-      <colgroup><col style="width:85px"><col style="width:140px"><col style="width:120px"><col style="width:100px"><col style="width:75px"><col style="width:100px"><col></colgroup>
-      <thead><tr><th>N°</th><th>Client</th><th>Produit</th><th>Statut</th><th>Date</th><th>HT</th><th>Devis</th></tr></thead>
+      <colgroup><col style="width:85px"><col style="width:140px"><col style="width:120px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:90px"><col></colgroup>
+      <thead><tr><th>N°</th><th>Client</th><th>Produit</th><th>Statut</th><th>Date</th><th>HT</th><th>TTC</th><th>Devis</th></tr></thead>
       <tbody>${dossiers.map(d=>`<tr class="clickable" onclick="openFiche('${d.id}')">
         <td style="font-size:11px;color:var(--ink-faint);font-family:'JetBrains Mono',monospace">${d.id}</td>
         <td><strong>${d.client}</strong></td>
@@ -4050,6 +4050,7 @@ function renderCompta() {
         <td>${statBadge(d.statut)}</td>
         <td style="font-size:12px;color:var(--ink-faint)">${fmt(d.dateLivraison)}</td>
         <td style="font-size:13px;font-weight:600">${(d.ht||0).toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
+        <td style="font-size:13px;color:var(--ink-soft)">${ttc(d).toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
         <td><span style="font-size:11px;padding:2px 7px;border-radius:3px;background:${d.devisStatut==='paye'?'var(--green-light)':d.devisStatut==='accepte'?'var(--accent-light)':'var(--bg)'};color:${d.devisStatut==='paye'?'var(--green)':d.devisStatut==='accepte'?'var(--accent-deep)':'var(--ink-faint)'}">${{en_attente:'En attente',accepte:'Accepté',refuse:'Refusé',facture:'Facturé',paye:'Payé'}[d.devisStatut]||'—'}</span></td>
       </tr>`).join('')}</tbody>
     </table>
