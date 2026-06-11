@@ -2797,13 +2797,14 @@ async function handleMegaoPDF(input) {
   const file = input.files[0];
   if (!file) return;
   input.value = '';
+  console.log('[Mégao] Import déclenché :', file.name, file.type, Math.round(file.size/1024)+'ko');
+  console.log('[Mégao] pdfjsLib disponible :', typeof pdfjsLib !== 'undefined' ? 'OUI v'+pdfjsLib.version : 'NON');
 
   try {
-    // 1. Parsing local (gratuit, instantané)
     const data = await parseMegaoPDFLocal(file);
     const found = Object.values(data).filter(v => String(v).trim()).length;
+    console.log('[Mégao] Champs extraits :', found, data);
 
-    // 2. Si trop peu de champs reconnus ET clé API configurée → fallback Claude
     if (found < 3) {
       const apiKey = localStorage.getItem('jmb_claude_api_key');
       if (apiKey) {
@@ -2812,14 +2813,15 @@ async function handleMegaoPDF(input) {
         fillFormFromMegao(data2);
         return;
       }
-      showImportStatus('⚠ Peu de champs reconnus — vérifiez le formulaire', true);
-      setTimeout(() => showImportStatus('', false), 5000);
+      showImportStatus('⚠ Peu de champs reconnus (' + found + ') — vérifiez le formulaire', true);
+      setTimeout(() => showImportStatus('', false), 6000);
     }
 
     fillFormFromMegao(data);
   } catch(e) {
+    console.error('[Mégao] Erreur import :', e);
     showImportStatus('⚠ ' + e.message, true);
-    setTimeout(() => showImportStatus('', false), 5000);
+    setTimeout(() => showImportStatus('', false), 6000);
   }
 }
 
