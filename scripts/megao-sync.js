@@ -30,8 +30,33 @@ function parseMegaoText(text) {
   const vrM       = text.match(/^(VR[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
   const lamM      = text.match(/^(LAM[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
   const trspM     = text.match(/^(TRSP[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
-  const structure = vrM  ? vrM[2].replace(/\s*(UN|ML|M2|PCS)\s+.*$/i, '').trim() : '';
+  // Structure : correspondance avec les options du select de l'app
+  const vrDesig = vrM ? vrM[2].replace(/\s*(UN|ML|M2|PCS)\s+.*$/i, '').trim() : '';
+  const vrCode  = vrM ? vrM[1] : '';
+  const vrText  = (vrCode + ' ' + vrDesig).toLowerCase();
+  const STRUCT_MAP = [
+    { k: ['silver roll','vrsil'],           v: 'Volet hors-sol Silver Roll (2h30)' },
+    { k: ['golden roll','solaire','vrsol'],  v: 'Volet hors-sol solaire Golden Roll (2h30)' },
+    { k: ['coffre','vrcof'],                v: 'Volet hors-sol avec coffre (2h30)' },
+    { k: ['x-trem','xtrem','vrxtr','grand bassin'], v: 'Volet hors-sol grand bassin X-Trem Roll (2h30)' },
+    { k: ['mouv','mouv&roll','vrmouv'],     v: 'Volet déplaçable Mouv&Roll (3h)' },
+    { k: ['subwater total','vrsubt'],       v: 'Volet immergé Subwater Total (6h30)' },
+    { k: ['subwater','vrsub'],              v: 'Volet immergé Subwater (5h)' },
+  ];
+  const structure = STRUCT_MAP.find(m => m.k.some(k => vrText.includes(k)))?.v || vrDesig;
   const lames     = lamM ? lamM[2].replace(/\s*(UN|ML|M2|PCS)\s+.*$/i, '').trim() : '';
+
+  // Largeur depuis le code LAM (LAM350→3.50m, LAM45→4.5m, LAM4→4m)
+  const lamCodeM = text.match(/^LAM([0-9]+)/m);
+  let largeur = '';
+  if (lamCodeM) {
+    const n = parseInt(lamCodeM[1]);
+    largeur = String(lamCodeM[1].length >= 3 ? n / 100 : lamCodeM[1].length === 2 ? n / 10 : n);
+  }
+
+  // Longueur depuis la quantité ML sur la ligne LAM (= mètres linéaires = longueur bassin)
+  const lamQtyM = text.match(/^LAM[0-9]+.+?ML\s+([\d,]+)/m);
+  const longueur = lamQtyM ? lamQtyM[1].replace(',', '.') : '';
 
   let transport = 'liv_pose';
   if (trspM) {
@@ -68,6 +93,7 @@ function parseMegaoText(text) {
     ref, client, contact, tel, email, adresse, cp, ville,
     structure, lames, pieds: '', alim: '', moteur: '',
     options: '', remarques: '', autres: '',
+    largeur, longueur,
     transport, ht, dateFrom, isVolet,
   };
 }
@@ -103,7 +129,8 @@ async function upsertDossier(data) {
     const doc    = existing.docs[0];
     const prev   = doc.data();
     const fields = ['client','tel','email','contact','adresse','cp','ville',
-                    'structure','lames','pieds','alim','moteur','options','remarques','autres','transport'];
+                    'structure','lames','pieds','alim','moteur','options','remarques','autres','transport',
+                    'largeur','longueur'];
     const update = {};
     for (const f of fields) {
       if (data[f]) update[f] = data[f];
@@ -142,6 +169,8 @@ async function upsertDossier(data) {
       transport:   data.transport  || 'liv_pose',
       remarques:   data.remarques  || '',
       autres:      data.autres     || '',
+      largeur:     data.largeur    || '',
+      longueur:    data.longueur   || '',
       needPose:    data.transport  === 'liv_pose',
       poseDate:    '',
       statut:      'nouveau',

@@ -2593,14 +2593,18 @@ function fillFormFromMegao(data) {
   set('f-remarques', data.remarques);
   set('f-autres',    data.autres);
   set('f-ref',       data.ref);
+  set('f-largeur',   data.largeur);
+  set('f-longueur',  data.longueur);
+  if (data.largeur || data.longueur) calcSurface();
   if (data.ht > 0) { set('f-ht', data.ht); calcTTC(); }
   if (data.dateFrom) set('f-date-livraison', data.dateFrom);
-  // Structure : cherche correspondance dans le select
+  // Structure : correspondance exacte (parseur retourne déjà l'option exacte)
   if (data.structure) {
     const sel = document.getElementById('f-structure');
     if (sel) {
       const opts = Array.from(sel.options);
-      const match = opts.find(o => o.text.toLowerCase().includes(data.structure.toLowerCase().slice(0, 10)));
+      const match = opts.find(o => o.text === data.structure)
+                 || opts.find(o => o.text.toLowerCase().includes(data.structure.toLowerCase().slice(0, 10)));
       if (match) sel.value = match.value;
       else {
         const rem = document.getElementById('f-remarques');
@@ -2674,8 +2678,32 @@ async function parseMegaoPDFLocal(file) {
   const vrProd    = products.find(p => /^VR/.test(p.code));
   const lamProd   = products.find(p => /^LAM/.test(p.code));
   const trspProd  = products.find(p => /^TRSP/.test(p.code));
-  const structure = vrProd  ? vrProd.desig  : '';
+
+  // Structure : correspondance avec les options du select
+  const vrText = ((vrProd ? vrProd.code : '') + ' ' + (vrProd ? vrProd.desig : '')).toLowerCase();
+  const STRUCT_MAP = [
+    { k: ['silver roll','vrsil'],           v: 'Volet hors-sol Silver Roll (2h30)' },
+    { k: ['golden roll','solaire','vrsol'],  v: 'Volet hors-sol solaire Golden Roll (2h30)' },
+    { k: ['coffre','vrcof'],                v: 'Volet hors-sol avec coffre (2h30)' },
+    { k: ['x-trem','xtrem','vrxtr','grand bassin'], v: 'Volet hors-sol grand bassin X-Trem Roll (2h30)' },
+    { k: ['mouv','mouv&roll','vrmouv'],     v: 'Volet déplaçable Mouv&Roll (3h)' },
+    { k: ['subwater total','vrsubt'],       v: 'Volet immergé Subwater Total (6h30)' },
+    { k: ['subwater','vrsub'],              v: 'Volet immergé Subwater (5h)' },
+  ];
+  const structure = STRUCT_MAP.find(m => m.k.some(k => vrText.includes(k)))?.v || (vrProd ? vrProd.desig : '');
   const lames     = lamProd ? lamProd.desig : '';
+
+  // Largeur depuis le code LAM (LAM350→3.50m, LAM45→4.5m, LAM4→4m)
+  const lamCodeM = lamProd ? lamProd.code.match(/^LAM([0-9]+)/) : null;
+  let largeur = '';
+  if (lamCodeM) {
+    const n = parseInt(lamCodeM[1]);
+    largeur = String(lamCodeM[1].length >= 3 ? n / 100 : lamCodeM[1].length === 2 ? n / 10 : n);
+  }
+
+  // Longueur depuis la quantité ML sur la ligne LAM (mètres linéaires = longueur bassin)
+  const lamQtyM = text.match(/^LAM[0-9]+.+?ML\s+([\d,]+)/m);
+  const longueur = lamQtyM ? lamQtyM[1].replace(',', '.') : '';
 
   let transport = 'liv_pose';
   if (trspProd) {
@@ -2715,6 +2743,7 @@ async function parseMegaoPDFLocal(file) {
   return { ref, client, contact, tel, email, adresse, cp, ville,
            structure, lames, pieds: '', alim: '', moteur: '',
            options: '', remarques: '', autres: '',
+           largeur, longueur,
            transport, ht, dateFrom, isVolet };
 }
 
