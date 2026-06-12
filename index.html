@@ -1500,6 +1500,7 @@ function connectUser(u) {
   if(btnApi) btnApi.style.display = can('create') ? '' : 'none';
   buildNav();
   checkRetards();
+  checkLivraisonsProches();
   goTab('dashboard');
   initChat();
 }
@@ -1567,6 +1568,43 @@ function checkRetards() {
   });
   saveData();
   buildNav(); // rafraîchit le badge de notifs
+}
+
+function checkLivraisonsProches() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split('T')[0];
+  const in3 = new Date(today); in3.setDate(in3.getDate() + 3);
+  const in3Str = in3.toISOString().split('T')[0];
+  const STATUTS_ACTIFS = ['nouveau','admin','production','emballage','stocké'];
+  const todayFR = new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  dossiers.forEach(d => {
+    if (!d.dateLivraison) return;
+    if (!STATUTS_ACTIFS.includes(d.statut)) return;
+    if (d.dateLivraison < todayStr || d.dateLivraison > in3Str) return;
+    const dejaNotifie = notifications.some(n =>
+      n.type === 'livraison:proche' && n.dosId === d.id &&
+      n.at && n.at.startsWith(todayFR)
+    );
+    if (dejaNotifie) return;
+    const jours = Math.round((new Date(d.dateLivraison) - today) / 86400000);
+    const notif = {
+      id: 'n' + Date.now() + Math.random().toString(36).slice(2,6),
+      type: 'livraison:proche',
+      dosId: d.id,
+      targets: ['direction','admin','planning'],
+      icon: 'ti-calendar-due',
+      bg: '#FEF3C7',
+      c: '#92400E',
+      title: jours === 0 ? `Livraison aujourd'hui — ${d.client}` : `Livraison dans ${jours} jour${jours>1?'s':''} — ${d.client}`,
+      body: `${d.structure||'—'} · Prévu le ${fmt(d.dateLivraison)} · Statut : ${STATUT_LABEL[d.statut]}`,
+      at: now(),
+      read: {},
+    };
+    users.forEach(u => { if (!['direction','admin','planning'].includes(u.role)) notif.read[u.id] = true; });
+    notifications.unshift(notif);
+  });
+  saveData();
+  buildNav();
 }
 
 /* ================================================================
@@ -1643,7 +1681,9 @@ function filteredDossiers(liste) {
     (d.email||'').toLowerCase().includes(q) ||
     (d.ville||'').toLowerCase().includes(q) ||
     (d.cp||'').toLowerCase().includes(q) ||
-    (d.ref||'').toLowerCase().includes(q)
+    (d.ref||'').toLowerCase().includes(q) ||
+    (d.revendeur||'').toLowerCase().includes(q) ||
+    (d.lames||'').toLowerCase().includes(q)
   );
 }
 
@@ -4478,7 +4518,7 @@ function renderCompta() {
   document.getElementById('main-content').innerHTML=`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div style="display:flex;align-items:center;gap:10px">
-      ${comptaRevendeurFilter ? `<button onclick="comptaRevendeurFilter='';renderCompta()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--paper);color:var(--ink-soft);cursor:pointer"><i class="ti ti-arrow-left" style="font-size:13px"></i> Tous</button>` : ''}
+      ${comptaRevendeurFilter ? `<button onclick="comptaRevendeurFilter='';renderCompta()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--paper);color:var(--ink-soft);cursor:pointer"><i class="ti ti-arrow-left" style="font-size:13px"></i> Tous</button><button onclick="dosRevendeurFilter='${comptaRevendeurFilter}';goTab('dos')" style="display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--paper);color:var(--accent-deep);cursor:pointer"><i class="ti ti-list" style="font-size:13px"></i> Voir les dossiers</button>` : ''}
       <div class="section-title" style="margin:0;font-size:17px;font-weight:700">${comptaRevendeurFilter ? `<span style="color:var(--ink-faint);font-weight:400;font-size:14px">Comptabilité · </span>${comptaRevendeurFilter}` : 'Comptabilité'}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -4540,8 +4580,8 @@ function renderCompta() {
 
   <div class="table-wrap">
     <table>
-      <colgroup><col style="width:85px"><col style="width:140px"><col style="width:120px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:90px"><col></colgroup>
-      <thead><tr><th>N°</th><th>Client</th><th>Produit</th><th>Statut</th><th>Date</th><th>HT</th><th>TTC</th><th>Devis</th></tr></thead>
+      <colgroup><col style="width:85px"><col style="width:140px"><col style="width:120px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col></colgroup>
+      <thead><tr><th>N°</th><th>Client</th><th>Produit</th><th>Statut</th><th>Date</th><th>HT</th><th>Devis</th></tr></thead>
       <tbody>${filtered.map(d=>`<tr class="clickable" onclick="openFiche('${d.id}')">
         <td style="font-size:11px;color:var(--ink-faint);font-family:'JetBrains Mono',monospace">${d.id}</td>
         <td><strong>${d.client}</strong></td>
@@ -4549,13 +4589,11 @@ function renderCompta() {
         <td>${statBadge(d.statut)}</td>
         <td style="font-size:12px;color:var(--ink-faint)">${fmt(d.dateLivraison)}</td>
         <td style="font-size:13px;font-weight:600">${(d.ht||0).toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
-        <td style="font-size:13px;color:var(--ink-soft)">${ttc(d).toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
         <td><span style="font-size:11px;padding:2px 7px;border-radius:3px;background:${d.devisStatut==='paye'?'var(--green-light)':d.devisStatut==='accepte'?'var(--accent-light)':'var(--bg)'};color:${d.devisStatut==='paye'?'var(--green)':d.devisStatut==='accepte'?'var(--accent-deep)':'var(--ink-faint)'}">${{en_attente:'En attente',accepte:'Accepté',refuse:'Refusé',facture:'Facturé',paye:'Payé'}[d.devisStatut]||'—'}</span></td>
       </tr>`).join('')}</tbody>
       <tfoot><tr style="font-weight:600;background:var(--bg)">
         <td colspan="5" style="font-size:12px;color:var(--ink-faint);text-align:right;padding:8px 12px">${filtered.length} dossier${filtered.length>1?'s':''} — total</td>
         <td style="font-size:13px;padding:8px 6px">${total.toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
-        <td style="font-size:13px;padding:8px 6px;color:var(--ink-soft)">${totalTTC.toLocaleString('fr-FR',{minimumFractionDigits:2})} €</td>
         <td></td>
       </tr></tfoot>
     </table>
