@@ -91,8 +91,11 @@ async function getNextDosId() {
 async function upsertDossier(data) {
   if (!data.ref) { console.warn('Ref absente — dossier ignoré'); return; }
 
-  const now   = new Date().toISOString();
-  const today = now.split('T')[0];
+  const nowDate  = new Date();
+  const now      = nowDate.toISOString();
+  const today    = now.split('T')[0];
+  const nowAt    = nowDate.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+                 + ' à ' + nowDate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 
   const existing = await db.collection('dossiers').where('ref', '==', data.ref).limit(1).get();
 
@@ -108,7 +111,7 @@ async function upsertDossier(data) {
     if (data.ht > 0 && !prev.ht) update.ht = data.ht;
     update.history = [
       ...(prev.history || []),
-      { type: 'megao', action: 'Mis à jour depuis Mégao', date: now }
+      { id: Date.now(), type: 'megao', action: 'Mis à jour depuis Mégao', detail: '', user: 'megao-sync', at: nowAt }
     ];
     await doc.ref.update(update);
     console.log(`✓ Mis à jour : ${doc.id} (ref: ${data.ref})`);
@@ -147,7 +150,7 @@ async function upsertDossier(data) {
         { type: 'commande', label: 'Fiche commande', checks: {} },
         { type: 'verif', label: 'Vérification atelier', checks: {}, rows: ['Rayons','Pans coupés','Lames coupées','Lames finies','Axe','Contre axe + rails','Découpe ESC en équerre','Découpe ESC en lisse','Poutre + cornière','Cloison','Caillebotis'] }
       ],
-      history:     [{ type: 'megao', action: 'Créé automatiquement depuis Mégao', date: now }]
+      history:     [{ id: Date.now(), type: 'création', action: 'Créé automatiquement depuis Mégao', detail: '', user: 'megao-sync', at: nowAt }]
     });
     console.log(`✓ Créé : ${id} (ref: ${data.ref}, client: ${data.client})`);
   }
