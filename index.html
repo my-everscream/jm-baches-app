@@ -1019,6 +1019,7 @@ a:focus-visible, button:focus-visible,
           <div class="form-group"><label class="form-label">Téléphone *</label><input id="f-tel" type="tel" placeholder="06 00 00 00 00"></div>
           <div class="form-group"><label class="form-label">Email</label><input id="f-email" type="email" placeholder="contact@exemple.fr"></div>
           <div class="form-group"><label class="form-label">Contact sur place</label><input id="f-contact" placeholder="Responsable chantier"></div>
+          <div class="form-group"><label class="form-label">Revendeur</label><input id="f-revendeur" placeholder="ex: ABATIK"></div>
         </div>
       </div>
       <div class="form-section">
@@ -2335,6 +2336,7 @@ function renderPageCommande(d, p) { p = p || {};
     </div>
     <div class="fiche-grid c3">
       <div class="fiche-cell"><div class="fiche-cell-label">Client</div><input value="${d.client||''}" onchange="setDosField('client',this.value)"></div>
+      <div class="fiche-cell"><div class="fiche-cell-label">Revendeur</div><input value="${d.revendeur||''}" onchange="setDosField('revendeur',this.value)" placeholder="ex: ABATIK"></div>
       <div class="fiche-cell"><div class="fiche-cell-label">Structure</div><select onchange="setDosField('structure',this.value)" style="background:transparent;border:none;padding:0;font-size:13px;font-weight:500">${STRUCTS.map(s=>`<option${d.structure===s?' selected':''}>${s}</option>`).join('')}</select></div>
       <div class="fiche-cell"><div class="fiche-cell-label">Téléphone</div><input value="${d.tel||''}" onchange="setDosField('tel',this.value)"></div>
     </div>
@@ -2595,6 +2597,7 @@ function fillFormFromMegao(data) {
   set('f-remarques', data.remarques);
   set('f-autres',    data.autres);
   set('f-ref',       data.ref);
+  set('f-revendeur', data.revendeur);
   set('f-largeur',   data.largeur);
   set('f-longueur',  data.longueur);
   if (data.largeur || data.longueur) calcSurface();
@@ -2667,6 +2670,14 @@ async function parseMegaoPDFLocal(file) {
   const ref      = refM ? refM[1].trim() : '';
   const dateM    = text.match(/Date\s*:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
   const dateFrom = dateM ? `${dateM[3]}-${dateM[2]}-${dateM[1]}` : '';
+
+  // Revendeur : bloc entre la Date et COMMANDE N° — première ligne tout-majuscules
+  const revBlockM = text.match(/Date\s*:[^\n]*\n([\s\S]*?)COMMANDE\s+N[°º]/i);
+  let revendeur = '';
+  if (revBlockM) {
+    const revLines = revBlockM[1].split('\n').map(l => l.trim()).filter(Boolean);
+    revendeur = revLines.find(l => /^[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ\s\-&\.]+$/.test(l) && !/^\d+$/.test(l)) || '';
+  }
 
   // Produits : en PDF.js le code est séparé par un espace de la désignation
   // Regex : code  désignation  UNIT  quantité (UNIT suivi de chiffres pour éviter faux positifs)
@@ -2755,7 +2766,7 @@ async function parseMegaoPDFLocal(file) {
   return { ref, client, contact, tel, email, adresse, cp, ville,
            structure, lames, pieds: '', alim, moteur,
            options: '', remarques: '', autres: '',
-           largeur, longueur,
+           largeur, longueur, revendeur,
            transport, ht, dateFrom, isVolet };
 }
 
@@ -2862,7 +2873,7 @@ async function handleMegaoPDF(input) {
 }
 
 function openNewDos() {
-  ['f-client','f-tel','f-email','f-contact','f-adresse','f-cp','f-ville','f-contraintes','f-options','f-lames','f-pieds','f-alim','f-moteur','f-ref','f-remarques','f-autres','f-largeur','f-longueur','f-surface','f-hauteur','f-profondeur','f-notes-dims'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-client','f-tel','f-email','f-contact','f-revendeur','f-adresse','f-cp','f-ville','f-contraintes','f-options','f-lames','f-pieds','f-alim','f-moteur','f-ref','f-remarques','f-autres','f-largeur','f-longueur','f-surface','f-hauteur','f-profondeur','f-notes-dims'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const np=document.getElementById('f-need-pose');if(np)np.checked=false;;
   document.getElementById('f-structure').value='';
   document.getElementById('f-tva').value='20';
@@ -2907,7 +2918,7 @@ function saveDossier() {
   const ht=parseFloat(document.getElementById('f-ht').value)||0;
   const d={id,
     client,tel:document.getElementById('f-tel').value,email:document.getElementById('f-email').value,
-    contact:document.getElementById('f-contact').value,adresse:document.getElementById('f-adresse').value,
+    contact:document.getElementById('f-contact').value,revendeur:document.getElementById('f-revendeur')?.value||'',adresse:document.getElementById('f-adresse').value,
     cp:document.getElementById('f-cp').value,ville:document.getElementById('f-ville').value,
     contraintes:document.getElementById('f-contraintes').value,
     structure:document.getElementById('f-structure').value,options:document.getElementById('f-options').value,

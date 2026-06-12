@@ -21,6 +21,14 @@ function parseMegaoText(text) {
   const refM = text.match(/COMMANDE\s+N[°º]\s*([A-Z0-9\-\/]+)/i);
   const ref  = refM ? refM[1].trim() : '';
 
+  // Revendeur : bloc entre la Date et COMMANDE N° — première ligne tout-majuscules
+  const revBlockM = text.match(/Date\s*:[^\n]*\n([\s\S]*?)COMMANDE\s+N[°º]/i);
+  let revendeur = '';
+  if (revBlockM) {
+    const revLines = revBlockM[1].split('\n').map(l => l.trim()).filter(Boolean);
+    revendeur = revLines.find(l => /^[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜ\s\-&\.]+$/.test(l) && !/^\d+$/.test(l)) || '';
+  }
+
   const dateM    = text.match(/Date\s*:\s*(\d{2})\/(\d{2})\/(\d{4})/i);
   const dateFrom = dateM ? `${dateM[3]}-${dateM[2]}-${dateM[1]}` : '';
 
@@ -103,7 +111,7 @@ function parseMegaoText(text) {
     ref, client, contact, tel, email, adresse, cp, ville,
     structure, lames, pieds: '', alim, moteur,
     options: '', remarques: '', autres: '',
-    largeur, longueur,
+    largeur, longueur, revendeur,
     transport, ht, dateFrom, isVolet,
   };
 }
@@ -140,7 +148,7 @@ async function upsertDossier(data) {
     const prev   = doc.data();
     const fields = ['client','tel','email','contact','adresse','cp','ville',
                     'structure','lames','pieds','alim','moteur','options','remarques','autres','transport',
-                    'largeur','longueur'];
+                    'largeur','longueur','revendeur'];
     const update = {};
     for (const f of fields) {
       if (data[f]) update[f] = data[f];
@@ -181,6 +189,7 @@ async function upsertDossier(data) {
       autres:      data.autres     || '',
       largeur:     data.largeur    || '',
       longueur:    data.longueur   || '',
+      revendeur:   data.revendeur  || '',
       needPose:    data.transport  === 'liv_pose',
       poseDate:    '',
       statut:      'nouveau',
