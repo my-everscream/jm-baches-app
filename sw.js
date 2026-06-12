@@ -1,9 +1,9 @@
-const CACHE_NAME = 'jmbaches-v1';
+const CACHE_NAME = 'jmbaches-v2';
 const ASSETS = [
-  '/jm-baches-app/',
-  '/jm-baches-app/index.html',
-  '/jm-baches-app/firebase-layer-v3.js',
-  '/jm-baches-app/manifest.json',
+  '/',
+  '/index.html',
+  '/firebase-layer-v3.js',
+  '/manifest.json',
 ];
 
 // Installation — mise en cache des ressources statiques
