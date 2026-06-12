@@ -216,7 +216,17 @@ window.doLogout = async function doLogout() {
 
 document.addEventListener('DOMContentLoaded', () => {
   showLoadingOverlay(true);
+
+  // Si Firebase/reCAPTCHA ne répond pas en 12s, afficher une erreur claire
+  const loadTimeout = setTimeout(() => {
+    showLoadingOverlay(false);
+    document.getElementById('login-screen').style.display = 'flex';
+    const err = document.getElementById('login-error');
+    if (err) err.textContent = '⚠️ Impossible de contacter Firebase. Vérifiez votre connexion internet et rechargez la page.';
+  }, 12000);
+
   _auth.onAuthStateChanged(async firebaseUser => {
+    clearTimeout(loadTimeout);
     if (firebaseUser) {
       showLoadingOverlay(true);
       await startFirestoreListeners();
