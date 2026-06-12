@@ -3909,6 +3909,16 @@ function renderSuivi() {
 let _dragId = null;
 let _dragOrigin = null;
 
+const TERMINAL_STATUTS = new Set(['expédié','livré','posé','retiré']);
+function isDropAllowed(d, newStatut) {
+  if (!TERMINAL_STATUTS.has(newStatut)) return true;
+  if (!d || !d.transport)              return true;
+  if (d.transport === 'enlvt')         return newStatut === 'retiré';
+  if (d.transport === 'livraison')     return newStatut === 'expédié' || newStatut === 'livré';
+  if (d.transport === 'liv_pose')      return newStatut === 'expédié' || newStatut === 'posé';
+  return true;
+}
+
 function onDragStart(e, id) {
   _dragId = id;
   const d = dossiers.find(x=>x.id===id);
@@ -3932,12 +3942,14 @@ function onDragEnd(e) {
 
 function onDragOver(e, statut) {
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
+  const d = dossiers.find(x => x.id === _dragId);
+  const allowed = isDropAllowed(d, statut);
+  e.dataTransfer.dropEffect = allowed ? 'move' : 'none';
   const col = document.getElementById('col-'+statut);
   if(col && statut !== _dragOrigin) {
-    col.style.background = 'var(--accent-light)';
-    col.style.outline = '2px dashed var(--accent)';
-    col.style.borderRadius = 'var(--radius-lg)';
+    col.style.background     = allowed ? 'var(--accent-light)' : '#FEE2E2';
+    col.style.outline        = allowed ? '2px dashed var(--accent)' : '2px dashed var(--red)';
+    col.style.borderRadius   = 'var(--radius-lg)';
   }
 }
 
@@ -3957,6 +3969,13 @@ function onDrop(e, newStatut) {
   // Vérifier les droits
   if(!can('advance')) {
     showToastSuivi('⛔ Vous n\'avez pas les droits pour modifier ce statut');
+    return;
+  }
+
+  // Vérifier la compatibilité transport
+  if(!isDropAllowed(d, newStatut)) {
+    const tl = {enlvt:'un enlèvement', livraison:'une livraison seule', liv_pose:'une livraison + pose'};
+    showToastSuivi(`⛔ Dossier ${tl[d.transport]||''} — ce statut n'est pas compatible`);
     return;
   }
 
