@@ -4889,10 +4889,17 @@ async function saveUser() {
     const btn = document.querySelector('#modal-user .btn-primary');
     if(btn) { btn.disabled=true; btn.innerHTML='<i class="ti ti-loader"></i> Création…'; }
     try {
-      // Créer le compte Firebase Auth avec un mot de passe temporaire aléatoire
+      // Utiliser une app secondaire pour ne pas déconnecter l'utilisateur courant
       const tmpPwd = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + 'A1!';
-      const cred = await firebase.auth().createUserWithEmailAndPassword(email, tmpPwd);
-      const uid = cred.user.uid;
+      const secondaryApp = firebase.initializeApp(firebaseConfig, 'createUser_' + Date.now());
+      let uid;
+      try {
+        const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, tmpPwd);
+        uid = cred.user.uid;
+        await secondaryApp.auth().signOut();
+      } finally {
+        await secondaryApp.delete();
+      }
 
       // Créer le profil Firestore avec l'UID comme ID (sans pwd)
       const profileData = { name, login, email, role, perms, active: true };
