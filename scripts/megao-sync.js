@@ -143,6 +143,10 @@ async function upsertDossier(data) {
       poseDate:    '',
       statut:      'nouveau',
       createdBy:   'megao-sync',
+      pages: [
+        { type: 'commande', label: 'Fiche commande', checks: {} },
+        { type: 'verif', label: 'Vérification atelier', checks: {}, rows: ['Rayons','Pans coupés','Lames coupées','Lames finies','Axe','Contre axe + rails','Découpe ESC en équerre','Découpe ESC en lisse','Poutre + cornière','Cloison','Caillebotis'] }
+      ],
       history:     [{ type: 'megao', action: 'Créé automatiquement depuis Mégao', date: now }]
     });
     console.log(`✓ Créé : ${id} (ref: ${data.ref}, client: ${data.client})`);

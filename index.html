@@ -2099,6 +2099,7 @@ function openFiche(id) {
 }
 function renderFiche() {
   const d=dossiers.find(x=>x.id===currentDosId); if(!d) return;
+  if(!d.pages||!d.pages.length) d.pages=[{type:'commande',label:'Fiche commande',checks:{}},{type:'verif',label:'Vérification atelier',checks:{},rows:[...VERIF_ROWS]}];
   const mc=document.getElementById('main-content');
   const p=d.pages[currentPageIdx];
   const tabs=d.pages.map((pg,i)=>`<button class="page-tab${i===currentPageIdx?' active':''}" onclick="switchPage(${i})">${pg.label}</button>`).join('');
