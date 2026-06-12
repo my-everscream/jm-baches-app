@@ -38,6 +38,8 @@ function parseMegaoText(text) {
   const vrM       = text.match(/^(VR[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
   const lamM      = text.match(/^(LAM[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
   const trspM     = text.match(/^(TRSP[A-Z0-9]+)\s*([A-Z][a-zÀ-ÿé].+)/m);
+  const instM     = text.match(/^(TRSP[A-Z0-9]*(?:PINST|INST)(\d{2,3})[A-Z0-9]*)/im);
+  const JM_COVER_DEPTS = new Set(['01','04','05','06','07','08','12','13','21','25','26','30','34','38','39','42','43','48','51','52','54','55','57','63','67','68','69','70','71','73','74','83','84','88','90']);
   // Structure : correspondance avec les options du select de l'app
   const vrDesig = vrM ? vrM[2].replace(/\s*(UN|ML|M2|PCS)\s+.*$/i, '').trim() : '';
   const vrCode  = vrM ? vrM[1] : '';
@@ -79,7 +81,10 @@ function parseMegaoText(text) {
   const longueur = lamQtyM ? lamQtyM[1].replace(',', '.') : '';
 
   let transport = 'liv_pose';
-  if (trspM) {
+  if (instM) {
+    const dept = String(parseInt(instM[2])).padStart(2, '0');
+    transport  = JM_COVER_DEPTS.has(dept) ? 'liv_pose' : 'livraison';
+  } else if (trspM) {
     const d = trspM[2].toUpperCase();
     transport = d.includes('ENLV') ? 'enlvt' : d.includes('POSE') ? 'liv_pose' : 'livraison';
   }
