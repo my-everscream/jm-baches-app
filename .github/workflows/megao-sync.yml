@@ -1,9 +1,10 @@
 name: Mégao Sync
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'   # toutes les 15 minutes
-  workflow_dispatch:           # déclenchement manuel pour tester
+  workflow_dispatch:   # déclenchement manuel + auto-relance
+
+permissions:
+  actions: write       # nécessaire pour déclencher le workflow suivant
 
 jobs:
   sync:
@@ -26,3 +27,11 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node megao-sync.js
+
+      - name: Planifier la prochaine sync dans 15 min
+        if: always()   # relancer même si la sync a échoué
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 900
+          gh workflow run megao-sync.yml --ref main
