@@ -1184,11 +1184,11 @@ a:focus-visible, button:focus-visible,
         </button>
         <button class="btn btn-secondary" style="justify-content:flex-start;gap:10px;padding:12px 14px" onclick="cloturerDossier('expédié')">
           <div style="width:32px;height:32px;border-radius:3px;background:#D1FAE5;color:#065F46;display:flex;align-items:center;justify-content:center"><i class="ti ti-truck"></i></div>
-          <div style="text-align:left"><div style="font-weight:600">Expédié</div><div style="font-size:11px;color:var(--ink-faint)">Livraison par transporteur, pas de pose</div></div>
+          <div style="text-align:left"><div style="font-weight:600">Livré</div><div style="font-size:11px;color:var(--ink-faint)">Livraison par transporteur, pas de pose</div></div>
         </button>
         <button class="btn btn-secondary" style="justify-content:flex-start;gap:10px;padding:12px 14px" onclick="cloturerDossier('retiré')">
           <div style="width:32px;height:32px;border-radius:3px;background:#F3F4F6;color:#374151;display:flex;align-items:center;justify-content:center"><i class="ti ti-walk"></i></div>
-          <div style="text-align:left"><div style="font-weight:600">Retiré sur place</div><div style="font-size:11px;color:var(--ink-faint)">Le client vient chercher en magasin</div></div>
+          <div style="text-align:left"><div style="font-weight:600">Enlevé</div><div style="font-size:11px;color:var(--ink-faint)">Le client vient chercher en magasin</div></div>
         </button>
       </div>
     </div>
@@ -1261,7 +1261,7 @@ const ROLE_DEFAULT_PERMS = {
   emballage: ['emballage','emballage_grand'],
 };
 const STATUT_NEXT = {nouveau:'admin',admin:'production',production:'emballage',emballage:'stocké',stocké:'expédié',expédié:'expédié',terminé:'emballage',posé:'posé',retiré:'retiré'};
-const STATUT_LABEL = {nouveau:'Nouveau',admin:'Traitement admin',production:'En production',emballage:'Emballage',stocké:'Stocké',expédié:'Expédié',posé:'Posé',retiré:'Retiré sur place'};
+const STATUT_LABEL = {nouveau:'Nouveau',admin:'Traitement admin',production:'En production',emballage:'Emballage',stocké:'Stocké',expédié:'Livré',posé:'Posé',retiré:'Enlevé'};
 const STATUT_COLORS = {nouveau:'#7C3AED',admin:'#D97706',production:'#2563EB',emballage:'#D97706',stocké:'#4338CA',expédié:'#059669',posé:'#065F46',retiré:'#374151'};
 const STATUT_NEXT_BTN = {nouveau:'→ Envoyer en admin',admin:'→ Envoyer en production',production:'→ Envoyer en emballage',emballage:'→ Marquer stocké',stocké:'→ Clôturer le dossier',expédié:'Dossier clôturé',posé:'Dossier clôturé',retiré:'Dossier clôturé',terminé:'→ Envoyer en emballage'};
 const EVT = {
@@ -2132,7 +2132,7 @@ function renderDos() {
           <td onclick="event.stopPropagation()">
             <div style="display:flex;gap:5px;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" onclick="openFiche('${d.id}')"><i class="ti ti-file-description"></i> Fiche</button>
-              ${can('advance')&&!isCloture(d.statut)?`<button class="btn btn-secondary btn-sm" onclick="avancerDos('${d.id}',event)">${STATUT_NEXT_BTN[d.statut].split(' ')[0]}</button>`:''}
+              ${can('advance')&&!isDossierCloture(d)?`<button class="btn btn-secondary btn-sm" onclick="avancerDos('${d.id}',event)">${getNextBtnLabel(d).split(' ')[0]}</button>`:''}
               ${can('create')?`<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="supprimerDossier('${d.id}',event)" title="Supprimer le dossier"><i class="ti ti-trash"></i></button>`:''}
             </div>
           </td>
@@ -2432,7 +2432,7 @@ function renderPageCommande(d, p) { p = p || {};
     </div>
     <div class="avance-bar no-print">
       <div style="font-size:12px;color:var(--ink-faint)">Prochaine étape :</div>
-      ${can('advance')&&!isCloture(d.statut)?`<button class="btn btn-primary" onclick="avancerFiche()"><i class="ti ti-arrow-right"></i> ${STATUT_NEXT_BTN[d.statut]}</button>`:`<span class="badge b-expedie">Dossier clôturé</span>`}
+      ${can('advance')&&!isDossierCloture(d)?`<button class="btn btn-primary" onclick="avancerFiche()"><i class="ti ti-arrow-right"></i> ${getNextBtnLabel(d)}</button>`:`<span class="badge b-expedie">Dossier clôturé</span>`}
     </div>
     <div style="display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--border)">
       <div style="flex:1"><div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-faint);margin-bottom:3px">Responsable</div><input value="${p.sigResponsable||''}" placeholder="Nom / initiales" onchange="setPageField(${currentPageIdx},'sigResponsable',this.value)"></div>
@@ -2543,13 +2543,41 @@ function addComment() {
 function saveFiche() { logHistory(currentDosId,'modification','Fiche enregistrée'); saveData(); showToast('Fiche enregistrée avec succès'); }
 const STATUTS_CLOTURE = ['expédié','posé','retiré'];
 function isCloture(statut) { return STATUTS_CLOTURE.includes(statut); }
+function isDossierCloture(d) {
+  if (!d) return false;
+  if (d.transport === 'enlvt')     return d.statut === 'retiré';
+  if (d.transport === 'livraison') return d.statut === 'expédié';
+  if (d.transport === 'liv_pose')  return d.statut === 'posé';
+  return isCloture(d.statut);
+}
+function getNextStatut(d) {
+  if (d.statut === 'expédié' && d.transport === 'liv_pose') return 'posé';
+  return STATUT_NEXT[d.statut] || d.statut;
+}
+function getNextBtnLabel(d) {
+  if (d.statut === 'stocké') {
+    if (d.transport === 'enlvt')     return '→ Marquer enlevé';
+    if (d.transport === 'livraison') return '→ Marquer livré';
+    if (d.transport === 'liv_pose')  return '→ Marquer livré';
+  }
+  if (d.statut === 'expédié' && d.transport === 'liv_pose') return '→ Marquer posé';
+  return STATUT_NEXT_BTN[d.statut] || '—';
+}
 function avancerFiche() {
-  const d=dossiers.find(x=>x.id===currentDosId); if(!d||isCloture(d.statut)) return;
-  if(d.statut==='stocké') { openModalCloture(d.id,'fiche'); return; }
-  const prev=d.statut; d.statut=STATUT_NEXT[prev];
-  logHistory(currentDosId,'statut',`Statut changé : ${STATUT_LABEL[prev]} → ${STATUT_LABEL[d.statut]}`);
-  pushNotif('statut:'+d.statut,d.id,d);
-  saveData(); showToast(`Statut mis à jour : ${STATUT_LABEL[d.statut]}`); renderFiche();
+  const d=dossiers.find(x=>x.id===currentDosId); if(!d||isDossierCloture(d)) return;
+  let next;
+  if(d.statut==='stocké') {
+    if(d.transport==='enlvt')          next='retiré';
+    else if(d.transport==='livraison') next='expédié';
+    else if(d.transport==='liv_pose')  next='expédié';
+    else { openModalCloture(d.id,'fiche'); return; }
+  } else {
+    next=getNextStatut(d);
+  }
+  const prev=d.statut; d.statut=next;
+  logHistory(currentDosId,'statut',`Statut changé : ${STATUT_LABEL[prev]} → ${STATUT_LABEL[next]}`);
+  pushNotif('statut:'+next,d.id,d);
+  saveData(); showToast(`Statut mis à jour : ${STATUT_LABEL[next]}`); renderFiche();
 }
 // Fermer tous les menus statut ouverts
 function closeAllStatutMenus() {
@@ -2586,16 +2614,24 @@ document.addEventListener('click', () => closeAllStatutMenus());
 
 function avancerDos(id,e) {
   if(e) e.stopPropagation();
-  const d=dossiers.find(x=>x.id===id); if(!d||isCloture(d.statut)) return;
-  if(d.statut==='stocké') { openModalCloture(id,'dos'); return; }
-  const prev=d.statut; d.statut=STATUT_NEXT[prev];
-  logHistory(id,'statut',`Statut changé : ${STATUT_LABEL[prev]} → ${STATUT_LABEL[d.statut]}`);
-  pushNotif('statut:'+d.statut,id,d);
+  const d=dossiers.find(x=>x.id===id); if(!d||isDossierCloture(d)) return;
+  let next;
+  if(d.statut==='stocké') {
+    if(d.transport==='enlvt')          next='retiré';
+    else if(d.transport==='livraison') next='expédié';
+    else if(d.transport==='liv_pose')  next='expédié';
+    else { openModalCloture(id,'dos'); return; }
+  } else {
+    next=getNextStatut(d);
+  }
+  const prev=d.statut; d.statut=next;
+  logHistory(id,'statut',`Statut changé : ${STATUT_LABEL[prev]} → ${STATUT_LABEL[next]}`);
+  pushNotif('statut:'+next,id,d);
   saveData();
   const mc=document.getElementById('main-content');
   const toast=document.createElement('div');
   toast.className='toast-msg show';
-  toast.innerHTML=`<i class="ti ti-check"></i> ${d.client} — ${STATUT_LABEL[d.statut]}`;
+  toast.innerHTML=`<i class="ti ti-check"></i> ${d.client} — ${STATUT_LABEL[next]}`;
   mc.prepend(toast);
   setTimeout(()=>toast.remove(),2500);
   renderDos();
@@ -5002,9 +5038,7 @@ async function supprimerDossier(dosId, e) {
   if (!confirm(`Supprimer définitivement le dossier ${dosId} — ${d.client} ?\n\nCette action est irréversible.`)) return;
   try {
     if (window._db) {
-      console.log('[supprimerDossier] tentative delete Firestore:', dosId);
       await window._db.collection('dossiers').doc(dosId).delete();
-      console.log('[supprimerDossier] delete OK côté serveur:', dosId);
       await Promise.all(
         notifications.filter(n => n.dosId === dosId).map(n =>
           window._db.collection('notifications').doc(String(n.id)).delete().catch(() => {})
