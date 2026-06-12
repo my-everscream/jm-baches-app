@@ -4704,7 +4704,10 @@ function renderNotifs() {
   document.getElementById('main-content').innerHTML=`
   <div class="section-header">
     <div class="section-title"><i class="ti ti-bell" style="margin-right:6px"></i>Mes notifications <span style="font-size:13px;font-weight:400;color:var(--ink-faint)">— ${ROLE_LABELS[currentUser.role]}</span></div>
-    ${unread.length>0?`<button class="btn btn-secondary btn-sm" onclick="markAllRead()"><i class="ti ti-checks"></i> Tout marquer lu</button>`:''}
+    <div style="display:flex;gap:8px">
+      ${unread.length>0?`<button class="btn btn-secondary btn-sm" onclick="markAllRead()"><i class="ti ti-checks"></i> Tout marquer lu</button>`:''}
+      ${mine.length>0?`<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAllNotifs()"><i class="ti ti-trash"></i> Tout supprimer</button>`:''}
+    </div>
   </div>
   <div class="card" style="margin-bottom:16px">
     <div class="card-hd">
@@ -4721,6 +4724,7 @@ function renderNotifs() {
         <div style="display:flex;gap:6px;margin-top:6px">
           ${n.dosId?`<button class="btn btn-primary btn-xs" onclick="markRead(${n.id});openFiche('${n.dosId}')"><i class="ti ti-external-link"></i> Voir le dossier</button>`:''}
           ${!n.read[currentUser.id]?`<button class="btn btn-ghost btn-xs" onclick="markRead(${n.id})"><i class="ti ti-check"></i> Marquer lue</button>`:''}
+          <button class="btn btn-ghost btn-xs" style="color:var(--red)" onclick="deleteNotif(${n.id})"><i class="ti ti-trash"></i></button>
         </div>
       </div>
       ${!n.read[currentUser.id]?'<div class="unread-dot"></div>':''}
@@ -4735,6 +4739,18 @@ function renderNotifs() {
       </div>`).join('')}
     </div>
   </div>`;
+}
+async function deleteNotif(id) {
+  if(window._db) await window._db.collection('notifications').doc(String(id)).delete().catch(()=>{});
+  notifications=notifications.filter(x=>x.id!==id);
+  updateBadge(); renderNotifs();
+}
+async function deleteAllNotifs() {
+  const mine=myNotifs();
+  if(window._db) await Promise.all(mine.map(n=>window._db.collection('notifications').doc(String(n.id)).delete().catch(()=>{})));
+  const ids=new Set(mine.map(n=>n.id));
+  notifications=notifications.filter(x=>!ids.has(x.id));
+  updateBadge(); renderNotifs();
 }
 function markRead(id) {
   const n=notifications.find(x=>x.id===id);
