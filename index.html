@@ -1382,6 +1382,7 @@ let dosCommFilter    = '';    // Filtre par commercial
 let dosPeriodeFilter = '';    // Filtre par période (ce_mois, mois_dernier, cette_annee, en_retard)
 let dosMontantMin    = '';    // Filtre montant min TTC
 let dosMontantMax    = '';    // Filtre montant max TTC
+let dosRevendeurFilter = '';  // Filtre par revendeur
 let comptaAnnee        = '';    // Filtre année compta
 let comptaDevisFilter  = '';    // Filtre statut devis en compta
 let comptaChartPeriod  = 12;   // Période graphique CA en mois (null = tout)
@@ -1684,7 +1685,8 @@ function applyDosFilters(liste) {
   // Filtre montant TTC
   if (dosMontantMin) r = r.filter(d => ttc(d) >= parseFloat(dosMontantMin));
   if (dosMontantMax) r = r.filter(d => ttc(d) <= parseFloat(dosMontantMax));
-  
+  if (dosRevendeurFilter) r = r.filter(d => (d.revendeur||'') === dosRevendeurFilter);
+
   return r;
 }
 
@@ -1966,8 +1968,8 @@ function renderDos() {
           <option value="" ${!dosCommFilter?'selected':''}>Tous les commerciaux</option>
           ${users.filter(u=>u.active&&(u.role==='commercial'||u.role==='admin'||u.role==='direction')).map(u=>`<option value="${u.id}" ${dosCommFilter===u.id?'selected':''}>${u.name}</option>`).join('')}
         </select>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="toggleFiltresAvances()" id="btn-filtres-avances" style="${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?'color:var(--accent);border-color:var(--accent)':''}">
-          <i class="ti ti-adjustments-horizontal"></i> Filtres${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?' <span style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:10px">actifs</span>':''}
+        <button class="btn btn-ghost btn-sm" onclick="toggleFiltresAvances()" id="btn-filtres-avances" style="${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter||dosRevendeurFilter)?'color:var(--accent);border-color:var(--accent)':''}">
+          <i class="ti ti-adjustments-horizontal"></i> Filtres${(dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter||dosRevendeurFilter)?' <span style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:10px">actifs</span>':''}
         </button>
         ${(()=>{const n=dossiers.filter(d=>isArchivable(d)).length;return n>0?`<button class="btn btn-ghost btn-sm" onclick="showArchived=!showArchived;renderDos()" style="${showArchived?'color:var(--accent);border-color:var(--accent)':'color:var(--ink-faint)'}"><i class="ti ti-archive"></i> Archives${showArchived?' (visible)':' ('+n+')'}
         </button>`:'';})()}
@@ -1977,7 +1979,7 @@ function renderDos() {
     </div>
 
     <!-- Filtres avancés -->
-    <div id="filtres-avances-panel" style="display:${(dosCommFilter||dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter)?'block':'none'}">
+    <div id="filtres-avances-panel" style="display:${(dosCommFilter||dosPeriodeFilter||dosMontantMin||dosMontantMax||dosStatFilter||dosRevendeurFilter)?'block':'none'}">
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         
         <!-- Statut -->
@@ -1995,6 +1997,15 @@ function renderDos() {
           <select onchange="dosCommFilter=this.value;applyFiltres()" style="width:150px;padding:6px 10px;font-size:13px">
             <option value="" ${!dosCommFilter?'selected':''}>Tous</option>
             ${users.filter(u=>u.active&&(u.role==='commercial'||u.role==='admin'||u.role==='direction')).map(u=>`<option value="${u.id}" ${dosCommFilter===u.id?'selected':''}>${u.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Revendeur -->
+        <div>
+          <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--ink-faint);margin-bottom:5px">Revendeur</div>
+          <select onchange="dosRevendeurFilter=this.value;applyFiltres()" style="width:150px;padding:6px 10px;font-size:13px">
+            <option value="" ${!dosRevendeurFilter?'selected':''}>Tous</option>
+            ${[...new Set(dossiers.map(d=>d.revendeur||'').filter(Boolean))].sort().map(r=>`<option value="${r}" ${dosRevendeurFilter===r?'selected':''}>${r}</option>`).join('')}
           </select>
         </div>
 
@@ -4491,6 +4502,32 @@ function renderCompta() {
     <div class="stat-card"><div class="stat-label">Nb dossiers</div><div class="stat-value">${filtered.length}</div><div class="stat-sub">${comptaAnnee?'en '+comptaAnnee:'au total'}</div></div>
   </div>
 
+  ${(()=>{
+    const revs = [...new Set(filtered.map(d=>d.revendeur||'').filter(Boolean))].sort();
+    if (!revs.length) return '';
+    const rows = revs.map(r => {
+      const rd = filtered.filter(d=>(d.revendeur||'')===r);
+      const rht = rd.reduce((s,d)=>s+(d.ht||0),0);
+      const pct = total>0 ? Math.round(rht/total*100) : 0;
+      return {r, nb:rd.length, ht:rht, pct};
+    }).sort((a,b)=>b.ht-a.ht);
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="card-hd"><span class="card-title"><i class="ti ti-building-store" style="margin-right:5px"></i>Par revendeur</span></div>
+      <div class="table-wrap" style="margin:0">
+        <table>
+          <colgroup><col><col style="width:80px"><col style="width:110px"><col style="width:80px"></colgroup>
+          <thead><tr><th>Revendeur</th><th>Dossiers</th><th>CA HT</th><th>% du CA</th></tr></thead>
+          <tbody>${rows.map(({r,nb,ht,pct})=>`<tr class="clickable" onclick="dosRevendeurFilter='${r}';goTab('dos')">
+            <td><strong>${r}</strong></td>
+            <td>${nb}</td>
+            <td style="font-weight:600">${Math.round(ht).toLocaleString('fr-FR')} €</td>
+            <td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:var(--border);border-radius:3px"><div style="width:${pct}%;height:100%;background:var(--accent);border-radius:3px"></div></div><span style="font-size:11px;color:var(--ink-faint);min-width:28px">${pct}%</span></div></td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  })()}
+
   <div class="table-wrap">
     <table>
       <colgroup><col style="width:85px"><col style="width:140px"><col style="width:120px"><col style="width:100px"><col style="width:75px"><col style="width:90px"><col style="width:90px"><col></colgroup>
@@ -5438,6 +5475,7 @@ function resetFiltres() {
   dosPeriodeFilter = '';
   dosMontantMin = '';
   dosMontantMax = '';
+  dosRevendeurFilter = '';
   renderDos();
 }
 
