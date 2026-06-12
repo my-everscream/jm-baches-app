@@ -46,6 +46,15 @@ function parseMegaoText(text) {
   const structure = STRUCT_MAP.find(m => m.k.some(k => vrText.includes(k)))?.v || vrDesig;
   const lames     = lamM ? lamM[2].replace(/\s*(UN|ML|M2|PCS)\s+.*$/i, '').trim() : '';
 
+  // Moteur : suffixe du code VR après le préfixe de structure (VRSIL80S → 80S)
+  const moteurM = vrCode.match(/^VR(?:SUBT|SUB|MOUV|XTR|COF|SOL|SIL)([A-Z0-9]+)$/i);
+  const moteur  = moteurM ? moteurM[1] : '';
+
+  // Alim : voltage dans la désignation VR ou LAM (24V, 230V, 12V…)
+  const alimSrc = vrDesig + ' ' + (lamM ? lamM[2] : '');
+  const alimM   = alimSrc.match(/\b(\d+)\s*[Vv]\b/);
+  const alim    = alimM ? alimM[1] + 'V' : '';
+
   // Largeur depuis le code LAM (LAM350→3.50m, LAM45→4.5m, LAM4→4m)
   const lamCodeM = text.match(/^LAM([0-9]+)/m);
   let largeur = '';
@@ -91,7 +100,7 @@ function parseMegaoText(text) {
 
   return {
     ref, client, contact, tel, email, adresse, cp, ville,
-    structure, lames, pieds: '', alim: '', moteur: '',
+    structure, lames, pieds: '', alim, moteur,
     options: '', remarques: '', autres: '',
     largeur, longueur,
     transport, ht, dateFrom, isVolet,
